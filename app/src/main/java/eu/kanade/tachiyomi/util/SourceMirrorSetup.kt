@@ -24,11 +24,6 @@ import uy.kohesive.injekt.api.get
 object SourceMirrorSetup {
 
     /**
-     * The class the extensions keep their mirror list in.
-     */
-    private const val MIRROR_PREFS_CLASS = "keiyoushi.source.MirrorPreferences"
-
-    /**
      * Registers the mirrors of the given sources. The url is the primary one, the list are the
      * alternatives.
      */
@@ -111,24 +106,34 @@ object SourceMirrorSetup {
     }
 
     /**
-     * The alternative domains of the extension, read from its mirror preferences.
+     * The alternative domains of the extension.
+     *
+     * An extension that ships mirrors keeps them in an object that holds a list of
+     * label/url pairs. The object is found by its structure, so it does not matter that the
+     * extension is obfuscated.
      */
     private fun mirrorUrlsOf(source: Any): List<String> {
         return try {
-            val loader = source.javaClass.classLoader ?: return emptyList()
-            val mirrorPrefsClass = loader.loadClass(MIRROR_PREFS_CLASS)
-            val field = source.javaClass.declaredFields.firstOrNull { it.type == mirrorPrefsClass }
-                ?: return emptyList()
-            field.isAccessible = true
-            val prefs = field.get(source) ?: return emptyList()
+            for (field in source.javaClass.declaredFields) {
+                if (field.type.isPrimitive || field.type.isEnum) continue
+                val value = runCatching {
+                    field.isAccessible = true
+                    field.get(source)
+                }.getOrNull() ?: continue
+                if (value == null || !field.type.isInstance(value)) continue
 
-            val mirrorsField = prefs.javaClass.declaredFields.firstOrNull {
-                it.type == Array::class.java
-            } ?: return emptyList()
-            mirrorsField.isAccessible = true
+                for (inner in value.javaClass.declaredFields) {
+                    if (inner.type != Array::class.java) continue
+                    val array = runCatching {
+                        inner.isAccessible = true
+                        inner.get(value)
+                    }.getOrNull() as? Array<*> ?: continue
 
-            val mirrors = mirrorsField.get(prefs) as? Array<*> ?: return emptyList()
-            mirrors.mapNotNull { (it as? Pair<*, *>)?.second as? String }
+                    val urls = array.mapNotNull { (it as? Pair<*, *>)?.second as? String }
+                    if (urls.isNotEmpty()) return urls
+                }
+            }
+            emptyList()
         } catch (e: Throwable) {
             emptyList()
         }

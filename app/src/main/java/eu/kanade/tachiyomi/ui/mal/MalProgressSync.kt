@@ -152,50 +152,52 @@ object MalProgressSync {
     suspend fun applyListProgress(entries: List<MalListScreenModel.MalListEntry>) {
         if (entries.isEmpty()) return
         try {
-            val tracks = animeTrackRepository.getAnimeTracksAsFlow().first()
-                .filter { it.trackerId == MAL_TRACKER_ID }
-            val tracksByRemoteId = tracks.associateBy { it.remoteId }
-
-            // Already linked - just apply the progress
-            for (entry in entries) {
-                val track = tracksByRemoteId[entry.id] ?: continue
-                if (entry.progress > track.lastEpisodeSeen) {
-                    applyAnimeProgress(track.animeId, entry.progress)
-                }
-            }
-
-            // Not linked yet - find the local anime with the same title
-            val linked = tracksByRemoteId.keys.toSet()
-            val unlinked = entries.filter { it.id !in linked }
-            if (unlinked.isEmpty()) return
-
             val local = localAnimeTitles()
             if (local.isEmpty()) return
 
-            // Several entries can match the same local anime (the seasons of a show), so the
-            // best match wins - not the one that happened to be processed last.
+            // The best entry for every local anime. Several entries can match the same local
+            // anime (the seasons of a show), so the best match wins.
             val bestPerLocal = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
-            for (entry in unlinked) {
+            for (entry in entries) {
                 val match = MalTitleMatcher.bestMatch(entry.title, local) ?: continue
                 val current = bestPerLocal[match.item]
                 if (current == null || match.score > current.score) {
                     bestPerLocal[match.item] = MalTitleMatcher.Match(entry, entry.title, match.score)
                 }
             }
+            if (bestPerLocal.isEmpty()) return
+
+            val tracks = animeTrackRepository.getAnimeTracksAsFlow().first()
+                .filter { it.trackerId == MAL_TRACKER_ID }
+            val tracksByAnimeId = tracks.associateBy { it.animeId }
 
             for ((localId, match) in bestPerLocal) {
                 val entry = match.item
+                val track = tracksByAnimeId[localId]
+
+                // A link that points at another entry is wrong - fix it
+                val needsLink = track == null || track.remoteId != entry.id
+                val needsProgress = track == null || entry.progress > track.lastEpisodeSeen
+                if (!needsLink && !needsProgress) continue
+
                 val title = local.first { it.first == localId }.second
-                logEvent("Linked anime $localId with MyAnimeList entry ${entry.id} ('${entry.title}', score ${match.score})")
-                linkAnime(
-                    animeId = localId,
-                    animeTitle = title,
-                    malId = entry.id.toInt(),
-                    episodesWatched = entry.progress,
-                    skipStatusLookup = true,
-                    statusId = entry.status.toStatusId(),
-                    totalEpisodes = entry.total?.toLong() ?: 0L,
-                )
+                if (needsLink) {
+                    logEvent(
+                        "Linked anime $localId with MyAnimeList entry ${entry.id} " +
+                            "('${entry.title}', score ${match.score})",
+                    )
+                    linkAnime(
+                        animeId = localId,
+                        animeTitle = title,
+                        malId = entry.id.toInt(),
+                        episodesWatched = entry.progress,
+                        skipStatusLookup = true,
+                        statusId = entry.status.toStatusId(),
+                        totalEpisodes = entry.total?.toLong() ?: 0L,
+                    )
+                } else {
+                    applyAnimeProgress(localId, entry.progress)
+                }
             }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to apply the MyAnimeList progress" }
@@ -221,46 +223,49 @@ object MalProgressSync {
     suspend fun applyMangaListProgress(entries: List<MalListScreenModel.MalListEntry>) {
         if (entries.isEmpty()) return
         try {
-            val tracks = mangaTrackRepository.getMangaTracksAsFlow().first()
-                .filter { it.trackerId == MAL_TRACKER_ID }
-            val tracksByRemoteId = tracks.associateBy { it.remoteId }
-
-            for (entry in entries) {
-                val track = tracksByRemoteId[entry.id] ?: continue
-                if (entry.progress > track.lastChapterRead) {
-                    applyMangaProgress(track.mangaId, entry.progress)
-                }
-            }
-
-            val linked = tracksByRemoteId.keys.toSet()
-            val unlinked = entries.filter { it.id !in linked }
-            if (unlinked.isEmpty()) return
-
             val local = localMangaTitles()
             if (local.isEmpty()) return
 
-            // Several entries can match the same local manga, the best match wins
+            // The best entry for every local manga
             val bestPerLocal = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
-            for (entry in unlinked) {
+            for (entry in entries) {
                 val match = MalTitleMatcher.bestMatch(entry.title, local) ?: continue
                 val current = bestPerLocal[match.item]
                 if (current == null || match.score > current.score) {
                     bestPerLocal[match.item] = MalTitleMatcher.Match(entry, entry.title, match.score)
                 }
             }
+            if (bestPerLocal.isEmpty()) return
+
+            val tracks = mangaTrackRepository.getMangaTracksAsFlow().first()
+                .filter { it.trackerId == MAL_TRACKER_ID }
+            val tracksByMangaId = tracks.associateBy { it.mangaId }
 
             for ((localId, match) in bestPerLocal) {
                 val entry = match.item
+                val track = tracksByMangaId[localId]
+
+                val needsLink = track == null || track.remoteId != entry.id
+                val needsProgress = track == null || entry.progress > track.lastChapterRead
+                if (!needsLink && !needsProgress) continue
+
                 val title = local.first { it.first == localId }.second
-                logEvent("Linked manga $localId with MyAnimeList entry ${entry.id} ('${entry.title}', score ${match.score})")
-                linkManga(
-                    mangaId = localId,
-                    mangaTitle = title,
-                    malId = entry.id.toInt(),
-                    chaptersRead = entry.progress,
-                    skipStatusLookup = true,
-                    statusId = entry.status.toStatusId(),
-                )
+                if (needsLink) {
+                    logEvent(
+                        "Linked manga $localId with MyAnimeList entry ${entry.id} " +
+                            "('${entry.title}', score ${match.score})",
+                    )
+                    linkManga(
+                        mangaId = localId,
+                        mangaTitle = title,
+                        malId = entry.id.toInt(),
+                        chaptersRead = entry.progress,
+                        skipStatusLookup = true,
+                        statusId = entry.status.toStatusId(),
+                    )
+                } else {
+                    applyMangaProgress(localId, entry.progress)
+                }
             }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to apply the MyAnimeList manga progress" }
