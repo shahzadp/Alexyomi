@@ -14,7 +14,6 @@ CREATE TABLE mangas(
     title TEXT NOT NULL,
     status INTEGER NOT NULL,
     thumbnail_url TEXT,
-    favorite INTEGER AS Boolean NOT NULL,
     last_update INTEGER,
     next_update INTEGER,
     initialized INTEGER AS Boolean NOT NULL,
@@ -25,21 +24,11 @@ CREATE TABLE mangas(
     update_strategy INTEGER AS UpdateStrategy NOT NULL DEFAULT 0,
     calculate_interval INTEGER DEFAULT 0 NOT NULL,
     last_modified_at INTEGER NOT NULL DEFAULT 0,
-    favorite_modified_at INTEGER,
     version INTEGER NOT NULL DEFAULT 0,
     is_syncing INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX library_favorite_index ON mangas(favorite) WHERE favorite = 1;
 CREATE INDEX mangas_url_index ON mangas(url);
-
-CREATE TRIGGER update_last_favorite_at_mangas
-AFTER UPDATE OF favorite ON mangas
-BEGIN
-  UPDATE mangas
-  SET favorite_modified_at = strftime('%s', 'now')
-  WHERE _id = new._id;
-END;
 
 CREATE TRIGGER update_last_modified_at_mangas
 AFTER UPDATE ON mangas
@@ -55,8 +44,7 @@ BEGIN
     UPDATE mangas SET version = version + 1
     WHERE _id = new._id AND new.is_syncing = 0 AND (
         new.url != old.url OR
-        new.description != old.description OR
-        new.favorite != old.favorite
+        new.description != old.description
     );
 END;
 
@@ -73,85 +61,22 @@ WHERE url = :url
 AND source = :source
 LIMIT 1;
 
-getFavorites:
-SELECT *
-FROM mangas
-WHERE favorite = 1;
-
-getReadMangaNotInLibrary:
-SELECT *
-FROM mangas
-WHERE favorite = 0 AND _id IN (
-    SELECT DISTINCT chapters.manga_id
-    FROM chapters
-    WHERE read = 1 OR last_page_read != 0
-);
-
-getAllManga:
-SELECT *
-FROM mangas;
-
-getAllMangaSourceAndUrl:
-SELECT source, url
-FROM mangas;
-
-getMangasWithFavoriteTimestamp:
-SELECT *
-FROM mangas
-WHERE favorite_modified_at IS NOT NULL;
-
-getSourceIdWithFavoriteCount:
-SELECT
-source,
-count(*)
-FROM mangas
-WHERE favorite = 1
-GROUP BY source;
-
-getFavoriteBySourceId:
-SELECT *
-FROM mangas
-WHERE favorite = 1
-AND source = :sourceId;
-
-getDuplicateLibraryManga:
-SELECT *
-FROM mangas
-WHERE favorite = 1
-AND LOWER(title) = :title
-AND _id != :id;
-
-getUpcomingManga:
-SELECT *
-FROM mangas
-WHERE next_update >= :startOfDay
-AND favorite = 1
-AND status IN :statuses
-ORDER BY next_update ASC;
-
 resetViewerFlags:
 UPDATE mangas
 SET viewer = 0;
+
+getAllMangas:
+SELECT *
+FROM mangas;
 
 resetIsSyncing:
 UPDATE mangas
 SET is_syncing = 0
 WHERE is_syncing = 1;
 
-getSourceIdsWithNonLibraryManga:
-SELECT source, COUNT(*) AS manga_count
-FROM mangas
-WHERE favorite = 0
-GROUP BY source;
-
-deleteMangasNotInLibraryBySourceIds:
-DELETE FROM mangas
-WHERE favorite = 0
-AND source IN :sourceIds;
-
 insert:
-INSERT INTO mangas(source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version)
-VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version);
+INSERT INTO mangas(source, url, artist, author, description, genre, title, status, thumbnail_url, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version)
+VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version);
 
 update:
 UPDATE mangas SET
@@ -164,7 +89,6 @@ UPDATE mangas SET
     title = coalesce(:title, title),
     status = coalesce(:status, status),
     thumbnail_url = coalesce(:thumbnailUrl, thumbnail_url),
-    favorite = coalesce(:favorite, favorite),
     last_update = coalesce(:lastUpdate, last_update),
     next_update = coalesce(:nextUpdate, next_update),
     initialized = coalesce(:initialized, initialized),

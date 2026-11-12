@@ -2,7 +2,7 @@
 <resources>
     <string name="name">სახელი</string>
     <string name="categories">კატეგორიები</string>
-    <string name="manga">ბიბლიოთეკის ჩანაწერები</string>
+    <string name="manga">Manga</string>
     <string name="history">ისტორია</string>
     <string name="label_more">მეტი</string>
     <string name="label_settings">პარამეტრები</string>

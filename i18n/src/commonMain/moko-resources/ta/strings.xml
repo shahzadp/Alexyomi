@@ -27,7 +27,7 @@
     <string name="action_bar_up_description">மேலே செல்லவும்</string>
     <string name="name">பெயர்</string>
     <string name="categories">வகைகள்</string>
-    <string name="manga">நூலக உள்ளீடுகள்</string>
+    <string name="manga">Manga</string>
     <string name="chapters">பாடங்கள்</string>
     <string name="track">கண்காணிப்பு</string>
     <string name="delete_downloaded">பதிவிறக்கம் செய்யப்பட்டதை நீக்கு</string>

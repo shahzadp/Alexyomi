@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Назва</string>
     <string name="categories">Категорії</string>
-    <string name="manga">Записи бібліотеки</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Розділи</string>
     <string name="track">Відстеження</string>
     <string name="history">Історія</string>

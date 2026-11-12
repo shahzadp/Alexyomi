@@ -150,13 +150,8 @@ class UpdateAnimeFromRemote(
             ""
         }
 
-        // if the anime isn't a favorite, set its title from source and update in db
-        val title =
-            if (remoteTitle.isNotEmpty() && !localAnime.favorite) {
-                remoteTitle
-            } else {
-                null
-            }
+        // always refresh the title from source
+        val title = remoteTitle.takeUnless { it.isEmpty() }
 
         val coverLastModified =
             when {

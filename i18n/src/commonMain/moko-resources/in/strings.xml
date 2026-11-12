@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="categories">Kategori</string>
-    <string name="manga">Entri pustaka</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Bab</string>
     <string name="track">Pelacakan</string>
     <string name="history">Riwayat</string>

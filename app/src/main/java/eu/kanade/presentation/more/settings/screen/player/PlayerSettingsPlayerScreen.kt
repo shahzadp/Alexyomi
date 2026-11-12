@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
+import eu.kanade.tachiyomi.ui.player.EXTERNAL_PLAYERS
 import eu.kanade.tachiyomi.ui.player.JUST_PLAYER
 import eu.kanade.tachiyomi.ui.player.MPV_KT
 import eu.kanade.tachiyomi.ui.player.MPV_KT_PREVIEW
@@ -303,7 +304,7 @@ object PlayerSettingsPlayerScreen : SearchableSettings {
 
         val pm = basePreferences.context.packageManager
         val installedPackages = pm.getInstalledPackages(0)
-        val supportedPlayers = installedPackages.filter { it.packageName in externalPlayers }
+        val supportedPlayers = installedPackages.filter { it.packageName in EXTERNAL_PLAYERS }
 
         val packageNames = supportedPlayers.map { it.packageName }
         val packageNamesReadable = supportedPlayers
@@ -319,6 +320,7 @@ object PlayerSettingsPlayerScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = alwaysUseExternalPlayer,
                     title = stringResource(AYMR.strings.pref_always_use_external_player),
+                    subtitle = stringResource(AYMR.strings.pref_always_use_external_player_summary),
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = externalPlayerPreference,

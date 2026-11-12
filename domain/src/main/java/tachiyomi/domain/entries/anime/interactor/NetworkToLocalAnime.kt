@@ -16,13 +16,9 @@ class NetworkToLocalAnime(
                 val id = insertAnime(anime)
                 anime.copy(id = id!!)
             }
-            !localAnime.favorite -> {
-                // if the anime isn't a favorite, set its display title from source
-                // if it later becomes a favorite, updated title will go to db
-                localAnime.copy(title = anime.title)
-            }
             else -> {
-                localAnime
+                // always take the latest display title from source
+                localAnime.copy(title = anime.title)
             }
         }
     }

@@ -188,7 +188,7 @@
     <string name="download_notifier_text_only_wifi">Nessuna connessione Wi-Fi disponibile</string>
     <string name="download_notifier_no_network">Nessuna connessione di rete disponibile</string>
     <string name="categories">Categorie</string>
-    <string name="manga">Voci della libreria</string>
+    <string name="manga">Manga</string>
     <string name="history">Cronologia</string>
     <string name="action_sort_total">Capitoli totali</string>
     <string name="action_add">Aggiungi</string>

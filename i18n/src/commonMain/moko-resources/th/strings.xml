@@ -2,7 +2,7 @@
 <resources>
     <string name="name">ชื่อ</string>
     <string name="categories">หมวดหมู่</string>
-    <string name="manga">รายการคลัง</string>
+    <string name="manga">Manga</string>
     <string name="chapters">ตอน</string>
     <string name="track">ติดตาม</string>
     <string name="history">ประวัติ</string>

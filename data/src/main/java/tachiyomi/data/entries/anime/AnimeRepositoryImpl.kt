@@ -12,10 +12,6 @@ import tachiyomi.data.handlers.anime.AnimeDatabaseHandler
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.anime.model.AnimeUpdate
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
-import tachiyomi.domain.library.anime.LibraryAnime
-import tachiyomi.domain.source.anime.model.DeletableAnime
-import java.time.LocalDate
-import java.time.ZoneId
 
 class AnimeRepositoryImpl(
     private val handler: AnimeDatabaseHandler,
@@ -49,37 +45,8 @@ class AnimeRepositoryImpl(
         }
     }
 
-    override suspend fun getAnimeFavorites(): List<Anime> {
-        return handler.awaitList { animesQueries.getFavorites(AnimeMapper::mapAnime) }
-    }
-
-    override suspend fun getWatchedAnimeNotInLibrary(): List<Anime> {
-        return handler.awaitList { animesQueries.getWatchedAnimeNotInLibrary(AnimeMapper::mapAnime) }
-    }
-
-    override suspend fun getLibraryAnime(): List<LibraryAnime> {
-        return handler.awaitList { animelibViewQueries.animelib(AnimeMapper::mapLibraryAnime) }
-    }
-
-    override fun getLibraryAnimeAsFlow(): Flow<List<LibraryAnime>> {
-        return handler.subscribeToList { animelibViewQueries.animelib(AnimeMapper::mapLibraryAnime) }
-    }
-
-    override fun getAnimeFavoritesBySourceId(sourceId: Long): Flow<List<Anime>> {
-        return handler.subscribeToList { animesQueries.getFavoriteBySourceId(sourceId, AnimeMapper::mapAnime) }
-    }
-
-    override suspend fun getDuplicateLibraryAnime(id: Long, title: String): List<Anime> {
-        return handler.awaitList {
-            animesQueries.getDuplicateLibraryAnime(title, id, AnimeMapper::mapAnime)
-        }
-    }
-
-    override suspend fun getUpcomingAnime(statuses: Set<Long>): Flow<List<Anime>> {
-        val epochMillis = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000
-        return handler.subscribeToList {
-            animesQueries.getUpcomingAnime(epochMillis, statuses, AnimeMapper::mapAnime)
-        }
+    override suspend fun getAllAnimes(): List<Anime> {
+        return handler.awaitList { animesQueries.getAllAnimes(AnimeMapper::mapAnime) }
     }
 
     override suspend fun resetAnimeViewerFlags(): Boolean {
@@ -114,7 +81,6 @@ class AnimeRepositoryImpl(
                 status = anime.status,
                 thumbnailUrl = anime.thumbnailUrl,
                 backgroundUrl = anime.backgroundUrl,
-                favorite = anime.favorite,
                 lastUpdate = anime.lastUpdate,
                 nextUpdate = anime.nextUpdate,
                 calculateInterval = anime.fetchInterval.toLong(),
@@ -175,12 +141,6 @@ class AnimeRepositoryImpl(
         }
     }
 
-    override fun getDeletableParentAnime(): Flow<List<DeletableAnime>> {
-        return handler.subscribeToList {
-            animedeletableViewQueries.getDeletableParentAnime(AnimeMapper::mapDeletableAnime)
-        }
-    }
-
     override suspend fun getChildrenByParentId(parentId: Long): List<Anime> {
         return handler.awaitList { animesQueries.getChildrenByParentId(parentId, AnimeMapper::mapAnime) }
     }
@@ -199,7 +159,6 @@ class AnimeRepositoryImpl(
                     status = value.status,
                     thumbnailUrl = value.thumbnailUrl,
                     backgroundUrl = value.backgroundUrl,
-                    favorite = value.favorite,
                     lastUpdate = value.lastUpdate,
                     nextUpdate = value.nextUpdate,
                     calculateInterval = value.fetchInterval?.toLong(),

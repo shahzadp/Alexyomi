@@ -76,7 +76,7 @@ fun SeasonSettingsDialog(
         )
     }
 
-    val downloadedOnly = remember { Injekt.get<BasePreferences>().downloadedOnly().get() }
+
 
     TabbedDialog(
         onDismissRequest = onDismissRequest,
@@ -104,8 +104,7 @@ fun SeasonSettingsDialog(
                 0 -> {
                     SeasonFilterPage(
                         downloadFilter = anime?.seasonDownloadedFilter ?: TriState.DISABLED,
-                        onDownloadFilterChanged = onDownloadFilterChanged
-                            .takeUnless { downloadedOnly },
+                        onDownloadFilterChanged = onDownloadFilterChanged,
                         unseenFilter = anime?.seasonUnseenFilter ?: TriState.DISABLED,
                         onUnseenFilterChanged = onUnseenFilterChanged,
                         startedFilter = anime?.seasonStartedFilter ?: TriState.DISABLED,

@@ -28,7 +28,6 @@ import tachiyomi.i18n.aniyomi.AYMR
  */
 enum class SetAsArt {
     Success,
-    AddToLibraryFirst,
     Error,
 }
 

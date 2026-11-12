@@ -99,7 +99,6 @@ class MangaHistoryScreenModelStateProvider : PreviewParameterProvider<MangaHisto
                         coverData = MangaCover(
                             mangaId = Random.nextLong(),
                             sourceId = Random.nextLong(),
-                            isMangaFavorite = Random.nextBoolean(),
                             url = "https://example.com/cover.png",
                             lastModified = Random.nextLong(),
                         ),

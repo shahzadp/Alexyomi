@@ -8,23 +8,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
-import eu.kanade.presentation.entries.manga.DuplicateMangaDialog
 import eu.kanade.presentation.history.HistoryDeleteAllDialog
 import eu.kanade.presentation.history.HistoryDeleteDialog
 import eu.kanade.presentation.history.manga.MangaHistoryScreen
-import eu.kanade.tachiyomi.ui.browse.manga.migration.search.MigrateMangaDialog
-import eu.kanade.tachiyomi.ui.browse.manga.migration.search.MigrateMangaDialogScreenModel
-import eu.kanade.tachiyomi.ui.category.CategoriesTab
 import eu.kanade.tachiyomi.ui.entries.manga.MangaScreen
-import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import kotlinx.collections.immutable.persistentListOf
@@ -61,14 +54,9 @@ fun Screen.mangaHistoryTab(
         }
     }
 
-    val scope = rememberCoroutineScope()
     val navigateUp: (() -> Unit)? = if (fromMore) {
         {
-            if (navigator.lastItem == HomeScreen) {
-                scope.launch { HomeScreen.openTab(HomeScreen.Tab.AnimeLib()) }
-            } else {
-                navigator.pop()
-            }
+            navigator.pop()
         }
     } else {
         null
@@ -85,7 +73,6 @@ fun Screen.mangaHistoryTab(
                 onClickCover = { navigator.push(MangaScreen(it)) },
                 onClickResume = screenModel::getNextChapterForManga,
                 onDialogChange = screenModel::setDialog,
-                onClickFavorite = screenModel::addFavorite,
             )
 
             val onDismissRequest = { screenModel.setDialog(null) }
@@ -107,41 +94,6 @@ fun Screen.mangaHistoryTab(
                     HistoryDeleteAllDialog(
                         onDismissRequest = onDismissRequest,
                         onDelete = screenModel::removeAllHistory,
-                    )
-                }
-                is MangaHistoryScreenModel.Dialog.DuplicateManga -> {
-                    DuplicateMangaDialog(
-                        onDismissRequest = onDismissRequest,
-                        onConfirm = {
-                            screenModel.addFavorite(dialog.manga)
-                        },
-                        onOpenManga = { navigator.push(MangaScreen(dialog.duplicate.id)) },
-                        onMigrate = {
-                            screenModel.showMigrateDialog(dialog.manga, dialog.duplicate)
-                        },
-                    )
-                }
-                is MangaHistoryScreenModel.Dialog.ChangeCategory -> {
-                    ChangeCategoryDialog(
-                        initialSelection = dialog.initialSelection,
-                        onDismissRequest = onDismissRequest,
-                        onEditCategories = {
-                            navigator.push(CategoriesTab)
-                            CategoriesTab.showMangaCategory()
-                        },
-                        onConfirm = { include, _ ->
-                            screenModel.moveMangaToCategoriesAndAddToLibrary(dialog.manga, include)
-                        },
-                    )
-                }
-                is MangaHistoryScreenModel.Dialog.Migrate -> {
-                    MigrateMangaDialog(
-                        oldManga = dialog.oldManga,
-                        newManga = dialog.newManga,
-                        screenModel = MigrateMangaDialogScreenModel(),
-                        onDismissRequest = onDismissRequest,
-                        onClickTitle = { navigator.push(MangaScreen(dialog.oldManga.id)) },
-                        onPopScreen = { navigator.replace(MangaScreen(dialog.newManga.id)) },
                     )
                 }
                 null -> {}

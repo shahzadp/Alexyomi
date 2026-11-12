@@ -85,7 +85,6 @@ import eu.kanade.tachiyomi.ui.reader.SaveImageNotifier
 import eu.kanade.tachiyomi.util.editBackground
 import eu.kanade.tachiyomi.util.editCover
 import eu.kanade.tachiyomi.util.editThumbnail
-import eu.kanade.tachiyomi.util.episode.filterDownloadedEpisodes
 import eu.kanade.tachiyomi.util.lang.byteSize
 import eu.kanade.tachiyomi.util.lang.takeBytes
 import eu.kanade.tachiyomi.util.storage.DiskUtil
@@ -1338,13 +1337,6 @@ class PlayerViewModel @JvmOverloads constructor(
 
         return episodes
             .sortedWith(getEpisodeSort(anime, sortDescending = false))
-            .run {
-                if (basePreferences.downloadedOnly().get()) {
-                    filterDownloadedEpisodes(anime)
-                } else {
-                    this
-                }
-            }
             .map { it.toDbEpisode() }
     }
 
@@ -1924,11 +1916,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     ArtType.Thumbnail -> episode.editThumbnail(anime, Injekt.get(), imageStream())
                 }
 
-                if (anime.isLocal() || anime.favorite) {
-                    SetAsArt.Success
-                } else {
-                    SetAsArt.AddToLibraryFirst
-                }
+                SetAsArt.Success
             } catch (e: Exception) {
                 SetAsArt.Error
             }
@@ -1998,7 +1986,6 @@ class PlayerViewModel @JvmOverloads constructor(
      */
     fun setAnimeSkipIntroLength(skipIntroLength: Long) {
         val anime = currentAnime.value ?: return
-        if (!anime.favorite) return
         // Skip unnecessary database operation
         if (skipIntroLength == getAnimeSkipIntroLength().toLong()) return
         viewModelScope.launchIO {

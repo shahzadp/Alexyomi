@@ -246,7 +246,7 @@
     <string name="manga_categories">Категорії манґи</string>
     <string name="general_categories">Категорії</string>
     <string name="anime_categories">Категорії аніме</string>
-    <string name="entries">Записи в бібліотеці</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Розділи та епізоди</string>
     <string name="episodes">Епізоди</string>
     <string name="backup_settings_warning">Попередження: Резервна копія налаштувань також збереже ваші паролі до треків, не поширюйте цей файл резервної копії!</string>

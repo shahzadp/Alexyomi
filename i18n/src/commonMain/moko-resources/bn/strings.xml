@@ -2,7 +2,7 @@
 <resources>
     <string name="name">নাম</string>
     <string name="categories">বিভাগসমূহ</string>
-    <string name="manga">পুস্তক সংগ্রহ</string>
+    <string name="manga">Manga</string>
     <string name="chapters">অধ্যায়সমূহ</string>
     <string name="track">ট্র্যাকিং</string>
     <string name="history">ইতিহাস</string>

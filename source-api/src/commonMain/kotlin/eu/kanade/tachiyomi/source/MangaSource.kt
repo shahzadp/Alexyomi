@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.source
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.util.awaitSingle
 import rx.Observable
 
@@ -23,6 +24,29 @@ interface MangaSource {
 
     val lang: String
         get() = ""
+
+    /**
+     * Fetches updated information for a manga.
+     *
+     * Depending on the provided flags this may include updated manga metadata, the available
+     * chapters, or both.
+     *
+     * @since tachiyomix 1.6
+     * @param manga the manga to fetch updates for.
+     * @param chapters existing chapters of the manga.
+     * @param fetchDetails whether to include updated manga details.
+     * @param fetchChapters whether to include available chapters.
+     */
+    suspend fun getMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val updatedManga = if (fetchDetails) getMangaDetails(manga) else manga
+        val updatedChapters = if (fetchChapters) getChapterList(manga) else chapters
+        return SMangaUpdate(updatedManga, updatedChapters)
+    }
 
     /**
      * Get the updated details for a manga.

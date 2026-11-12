@@ -16,7 +16,6 @@ internal class AnimeHistoryWithRelationsProvider : PreviewParameterProvider<Anim
         coverData = tachiyomi.domain.entries.anime.model.AnimeCover(
             animeId = 3L,
             sourceId = 4L,
-            isAnimeFavorite = false,
             url = "https://example.com/cover.png",
             lastModified = 5L,
         ),
@@ -32,7 +31,6 @@ internal class AnimeHistoryWithRelationsProvider : PreviewParameterProvider<Anim
         coverData = tachiyomi.domain.entries.anime.model.AnimeCover(
             animeId = 3L,
             sourceId = 4L,
-            isAnimeFavorite = false,
             url = "https://example.com/cover.png",
             lastModified = 5L,
         ),
@@ -48,7 +46,6 @@ internal class AnimeHistoryWithRelationsProvider : PreviewParameterProvider<Anim
         coverData = tachiyomi.domain.entries.anime.model.AnimeCover(
             animeId = 3L,
             sourceId = 4L,
-            isAnimeFavorite = false,
             url = "https://example.com/cover.png",
             lastModified = 5L,
         ),

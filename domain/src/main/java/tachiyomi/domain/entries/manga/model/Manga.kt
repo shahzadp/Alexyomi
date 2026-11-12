@@ -11,7 +11,6 @@ import java.time.Instant
 data class Manga(
     val id: Long,
     val source: Long,
-    val favorite: Boolean,
     val lastUpdate: Long,
     val nextUpdate: Long,
     val fetchInterval: Int,
@@ -30,7 +29,6 @@ data class Manga(
     val updateStrategy: UpdateStrategy,
     val initialized: Boolean,
     val lastModifiedAt: Long,
-    val favoriteModifiedAt: Long?,
     val version: Long,
 ) : Serializable {
 
@@ -107,7 +105,6 @@ data class Manga(
             url = "",
             title = "",
             source = -1L,
-            favorite = false,
             lastUpdate = 0L,
             nextUpdate = 0L,
             fetchInterval = 0,
@@ -124,7 +121,6 @@ data class Manga(
             updateStrategy = UpdateStrategy.ALWAYS_UPDATE,
             initialized = false,
             lastModifiedAt = 0L,
-            favoriteModifiedAt = null,
             version = 0L,
         )
     }

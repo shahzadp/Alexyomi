@@ -14,8 +14,6 @@ interface AnimeSourceRepository {
 
     fun getOnlineAnimeSources(): Flow<List<AnimeSource>>
 
-    fun getAnimeSourcesWithFavoriteCount(): Flow<List<Pair<AnimeSource, Long>>>
-
     fun searchAnime(sourceId: Long, query: String, filterList: AnimeFilterList): AnimeSourcePagingSourceType
 
     fun getPopularAnime(sourceId: Long): AnimeSourcePagingSourceType

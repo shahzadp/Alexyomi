@@ -27,7 +27,7 @@
     <string name="action_menu">मेनू</string>
     <string name="action_filter_bookmarked">बुकमार्क आहे</string>
     <string name="track">ट्रॅकिंग</string>
-    <string name="manga">लायब्ररी इंत्रिज</string>
+    <string name="manga">Manga</string>
     <string name="categories">श्रेण्या</string>
     <string name="information_empty_category">तुम्ही श्रेण्या बनविल्या नाही आहेत, प्लस वर दाबून तुम्ही श्रेणी बनवू शकता.</string>
     <string name="information_empty_library">तुमची संग्रहालय खाली आहे</string>

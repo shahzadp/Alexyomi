@@ -220,7 +220,7 @@ object SettingsMainScreen : Screen() {
         ),
         Item(
             titleRes = MR.strings.label_data_storage,
-            subtitleRes = MR.strings.pref_backup_summary,
+            subtitleRes = MR.strings.pref_data_storage_summary,
             icon = Icons.Outlined.Storage,
             screen = SettingsDataScreen,
         ),

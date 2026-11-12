@@ -237,7 +237,7 @@
     <string name="manga_categories">漫画分类</string>
     <string name="general_categories">分类</string>
     <string name="anime_categories">动画分类</string>
-    <string name="entries">仓库中的作品</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">章节与选集</string>
     <string name="episodes">选集</string>
     <string name="backup_settings_warning">警告：备份设置的同时会存储您的跟踪码，因此不要与他人分享此备份文件！</string>

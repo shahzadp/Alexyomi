@@ -62,7 +62,7 @@
     <string name="manga_categories">קטגוריות מנגה</string>
     <string name="general_categories">קטגוריות</string>
     <string name="anime_categories">קטגוריות אנימה</string>
-    <string name="entries">ערכים בספרייה</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">חלקים ופרקים</string>
     <string name="episodes">פרקים</string>
     <string name="backup_settings_warning">אזהרה: גיבוי הגדרות יאחסן גם את סיסמאות המעקב שלך, אל תשתף קובץ גיבוי זה!</string>

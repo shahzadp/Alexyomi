@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Όνομα</string>
     <string name="categories">Κατηγορίες</string>
-    <string name="manga">Καταχωρήσεις βιβλιοθήκης</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Κεφάλαια</string>
     <string name="track">Παρακολούθηση</string>
     <string name="history">Ιστορικό</string>

@@ -141,7 +141,7 @@
     <string name="action_settings">Postavke</string>
     <string name="history">Povijest</string>
     <string name="track">Praćenje</string>
-    <string name="manga">Unosi u biblioteci</string>
+    <string name="manga">Manga</string>
     <string name="restore_duration">%1$02d min, %2$02d s</string>
     <string name="restore_completed">Obnavljanje je završeno</string>
     <string name="backup_created">Sigurnosna kopija je stvorena</string>

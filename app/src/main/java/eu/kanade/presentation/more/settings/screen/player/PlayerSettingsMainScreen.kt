@@ -225,12 +225,6 @@ class PlayerSettingsMainScreen(private val mainSettings: Boolean) : Screen() {
             screen = PlayerSettingsEditorScreen,
         ),
         Item(
-            titleRes = AYMR.strings.pref_player_torrents,
-            subtitleRes = AYMR.strings.pref_player_torrents_summary,
-            icon = CustomIcons.Magnet,
-            screen = PlayerSettingsTorrentScreen,
-        ),
-        Item(
             titleRes = AYMR.strings.pref_player_advanced,
             subtitleRes = AYMR.strings.pref_player_advanced_summary,
             icon = Icons.Outlined.Code,

@@ -98,7 +98,6 @@ class AnimeHistoryScreenModelStateProvider : PreviewParameterProvider<AnimeHisto
                         coverData = AnimeCover(
                             animeId = Random.nextLong(),
                             sourceId = Random.nextLong(),
-                            isAnimeFavorite = Random.nextBoolean(),
                             url = "https://example.com/cover.png",
                             lastModified = Random.nextLong(),
                         ),

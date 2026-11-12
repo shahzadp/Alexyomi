@@ -255,6 +255,13 @@ class MangaDownloadManager(
     }
 
     /**
+     * Removes the given chapters from the download queue (if they are queued).
+     */
+    fun removeFromQueue(chapters: List<Chapter>) {
+        downloader.removeFromQueue(chapters)
+    }
+
+    /**
      * Deletes the directories of a list of downloaded chapters.
      *
      * @param chapters the list of chapters to delete.

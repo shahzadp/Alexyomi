@@ -69,7 +69,7 @@
     <string name="manga_categories">Kategorie</string>
     <string name="general_categories">Kategorie</string>
     <string name="anime_categories">Kategorie anime</string>
-    <string name="entries">Pozycje w bibliotece</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Rozdziały i odcinki</string>
     <string name="episodes">Odcinki</string>
     <string name="backup_settings_warning">Ostrzeżenie: Tworzenie kopii zapasowej ustawień spowoduje zapisanie również haseł do ścieżek, nie udostępniaj tego pliku nikomu!</string>

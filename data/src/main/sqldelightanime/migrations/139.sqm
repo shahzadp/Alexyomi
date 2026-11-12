@@ -1,0 +1,187 @@
+DROP VIEW IF EXISTS animelibView;
+DROP VIEW IF EXISTS animeupdatesView;
+DROP VIEW IF EXISTS animedeletableView;
+DROP VIEW IF EXISTS animehistoryView;
+DROP VIEW IF EXISTS animeseasonsView;
+DROP VIEW IF EXISTS animeseasonstatsView;
+DROP TRIGGER IF EXISTS update_last_favorite_at_animes;
+DROP TRIGGER IF EXISTS update_last_modified_at_animes;
+DROP TRIGGER IF EXISTS update_anime_version;
+DROP INDEX IF EXISTS animelib_favorite_index;
+DROP INDEX IF EXISTS animes_url_index;
+DROP INDEX IF EXISTS animes_parent_id;
+DROP INDEX IF EXISTS animes_fetch_type;
+
+ALTER TABLE animes RENAME TO animes_temp;
+CREATE TABLE animes(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    source INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    artist TEXT,
+    author TEXT,
+    description TEXT,
+    genre TEXT,
+    title TEXT NOT NULL,
+    status INTEGER NOT NULL,
+    thumbnail_url TEXT,
+    last_update INTEGER,
+    next_update INTEGER,
+    initialized INTEGER AS Boolean NOT NULL,
+    viewer INTEGER NOT NULL,
+    episode_flags INTEGER NOT NULL,
+    cover_last_modified INTEGER NOT NULL,
+    date_added INTEGER NOT NULL,
+    update_strategy INTEGER NOT NULL DEFAULT 0,
+    calculate_interval INTEGER DEFAULT 0 NOT NULL,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER NOT NULL DEFAULT 0,
+    fetch_type INTEGER NOT NULL DEFAULT 1,
+    parent_id INTEGER,
+    season_flags INTEGER NOT NULL DEFAULT 0,
+    season_number REAL NOT NULL DEFAULT 0,
+    season_source_order INTEGER NOT NULL DEFAULT 0,
+    background_url TEXT,
+    background_last_modified INTEGER NOT NULL DEFAULT 0,
+    memo BLOB NOT NULL DEFAULT '{}'
+);
+INSERT INTO animes
+SELECT _id,source,url,artist,author,description,genre,title,status,thumbnail_url,last_update,next_update,initialized,viewer,episode_flags,cover_last_modified,date_added,update_strategy,calculate_interval,last_modified_at,version,is_syncing,fetch_type,parent_id,season_flags,season_number,season_source_order,background_url,background_last_modified,memo
+FROM animes_temp;
+
+CREATE INDEX animes_url_index ON animes(url);
+CREATE INDEX animes_parent_id ON animes(parent_id);
+CREATE INDEX animes_fetch_type ON animes(fetch_type);
+
+CREATE TRIGGER update_last_modified_at_animes
+AFTER UPDATE ON animes
+FOR EACH ROW
+BEGIN
+  UPDATE animes
+  SET last_modified_at = strftime('%s', 'now')
+  WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_anime_version AFTER UPDATE ON animes
+BEGIN
+    UPDATE animes SET version = version + 1
+    WHERE _id = new._id AND new.is_syncing = 0 AND (
+        new.url != old.url OR
+        new.description != old.description
+    );
+END;
+
+CREATE VIEW animehistoryView AS
+SELECT
+    animehistory._id AS id,
+    animes._id AS animeId,
+    episodes._id AS episodeId,
+    animes.title,
+    animes.thumbnail_url AS thumbnailUrl,
+    animes.source,
+    animes.cover_last_modified,
+    episodes.episode_number AS episodeNumber,
+    animehistory.last_seen AS seenAt,
+    max_last_seen.last_seen AS maxSeenAt,
+    max_last_seen.episode_id AS maxSeenAtEpisodeId
+FROM animes
+JOIN episodes
+ON animes._id = episodes.anime_id
+JOIN animehistory
+ON episodes._id = animehistory.episode_id
+JOIN (
+    SELECT episodes.anime_id,episodes._id AS episode_id, MAX(animehistory.last_seen) AS last_seen
+    FROM episodes JOIN animehistory
+    ON episodes._id = animehistory.episode_id
+    GROUP BY episodes.anime_id
+) AS max_last_seen
+ON episodes.anime_id = max_last_seen.anime_id;
+
+CREATE VIEW animeseasonstatsView AS
+SELECT
+    season.parent_id,
+    count(*) AS child_count,
+    sum(CASE WHEN season.fetch_type = 1 AND
+                 coalesce(ES.total, 0) = coalesce(ES.seenCount, 0)
+            THEN 1 ELSE 0 END) AS fully_seen_seasons,
+    max(coalesce(ES.latestUpload, 0)) AS max_latest_upload,
+    max(coalesce(ES.fetchedAt, 0)) AS max_fetched_at,
+    max(coalesce(AHS.lastSeen, 0)) AS max_last_seen,
+    sum(coalesce(ES.bookmarkCount, 0)) AS total_bookmarks,
+    sum(coalesce(ES.fillermarkCount, 0)) AS total_fillermarks
+FROM animes season
+LEFT JOIN episodestatsView ES ON season._id = ES.anime_id
+LEFT JOIN animehistorystatsView AHS ON season._id = AHS.anime_id
+WHERE season.parent_id IS NOT NULL
+GROUP BY season.parent_id;
+
+CREATE VIEW animeseasonsView AS
+SELECT
+    M._id AS _id,
+    M.source AS source,
+    M.url AS url,
+    M.artist AS artist,
+    M.author AS author,
+    M.description AS description,
+    M.genre AS genre,
+    M.title AS title,
+    M.status AS status,
+    M.thumbnail_url AS thumbnail_url,
+    M.last_update AS last_update,
+    M.next_update AS next_update,
+    M.initialized AS initialized,
+    M.viewer AS viewer,
+    M.episode_flags AS episode_flags,
+    M.cover_last_modified AS cover_last_modified,
+    M.date_added AS date_added,
+    M.update_strategy AS update_strategy,
+    M.calculate_interval AS calculate_interval,
+    M.last_modified_at AS last_modified_at,
+    M.version AS version,
+    M.is_syncing AS is_syncing,
+    M.fetch_type AS fetch_type,
+    M.parent_id AS parent_id,
+    M.season_flags AS season_flags,
+    M.season_number AS season_number,
+    M.season_source_order AS season_source_order,
+    M.background_url AS background_url,
+    M.background_last_modified AS background_last_modified,
+    M.memo AS memo,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(ES.total, 0)
+        WHEN 0 THEN coalesce(ASS.child_count, 0)
+    END AS totalCount,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(ES.seenCount, 0)
+        WHEN 0 THEN coalesce(ASS.fully_seen_seasons, 0)
+    END AS seenCount,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(ES.latestUpload, 0)
+        WHEN 0 THEN coalesce(ASS.max_latest_upload, 0)
+    END AS latestUpload,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(ES.fetchedAt, 0)
+        WHEN 0 THEN coalesce(ASS.max_fetched_at, 0)
+    END AS episodeFetchedAt,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(AHS.lastSeen, 0)
+        WHEN 0 THEN coalesce(ASS.max_last_seen, 0)
+    END AS lastSeen,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(ES.bookmarkCount, 0)
+        WHEN 0 THEN coalesce(ASS.total_bookmarks, 0)
+    END AS bookmarkCount,
+    CASE M.fetch_type
+        WHEN 1 THEN coalesce(ES.fillermarkCount, 0)
+        WHEN 0 THEN coalesce(ASS.total_fillermarks, 0)
+    END AS fillermarkCount
+FROM animes AS M
+LEFT JOIN episodestatsView AS ES
+ON M._id = ES.anime_id
+LEFT JOIN animehistorystatsView AS AHS
+ON M._id = AHS.anime_id
+LEFT JOIN animeseasonstatsView AS ASS
+ON M._id = ASS.parent_id
+WHERE M.parent_id IS NOT NULL;
+
+DROP TABLE animes_temp;

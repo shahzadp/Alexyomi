@@ -36,7 +36,7 @@
     <string name="label_recent_manga">ചരിത്രം</string>
     <string name="label_sources">ഉൽഭവം</string>
     <string name="label_backup">ബാക്കപ്പും റിസ്റ്റോറും</string>
-    <string name="manga">ലൈബ്രറി എൻട്രികൾ</string>
+    <string name="manga">Manga</string>
     <string name="label_stats">സ്ഥിതിവിവരക്കണക്കുകൾ</string>
     <string name="label_migration">മൈഗ്രേറ്റ് ചെയ്യുക</string>
     <string name="label_extensions">വിപുലീകരണങ്ങൾ</string>

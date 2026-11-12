@@ -219,7 +219,7 @@
     <string name="manga_categories">Kategorije</string>
     <string name="general_categories">Категорије</string>
     <string name="anime_categories">Аниме категорије</string>
-    <string name="entries">Уноси у библиотеку</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Поглавља и епизоде</string>
     <string name="episodes">Епизоде</string>
     <string name="backup_settings_warning">Упозорење: Прављење резервне копије подешавања ће такође сачувати ваше лозинке за праћење, не делите овај резервни фајл!</string>

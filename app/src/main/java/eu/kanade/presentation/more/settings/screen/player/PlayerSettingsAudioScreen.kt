@@ -4,11 +4,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
 import eu.kanade.tachiyomi.ui.player.settings.AudioChannels
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
+import eu.kanade.tachiyomi.util.applyDubPreferenceToAnimeSources
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.coroutines.launch
+import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -26,12 +33,15 @@ object PlayerSettingsAudioScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val audioPreferences = remember { Injekt.get<AudioPreferences>() }
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
 
         val prefLangs = audioPreferences.preferredAudioLanguages()
         val pitchCorrection = audioPreferences.enablePitchCorrection()
         val audioChannels = audioPreferences.audioChannels()
         val boostCapPref = audioPreferences.volumeBoostCap()
         val boostCap by boostCapPref.collectAsState()
+        val preferDub = audioPreferences.preferDubAnimeSources()
 
         return listOf(
             Preference.PreferenceItem.EditTextInfoPreference(
@@ -95,6 +105,28 @@ object PlayerSettingsAudioScreen : SearchableSettings {
                 onValueChanged = {
                     boostCapPref.set(it)
                     true
+                },
+            ),
+            Preference.PreferenceItem.SwitchPreference(
+                preference = preferDub,
+                title = stringResource(AYMR.strings.pref_player_audio_prefer_dub),
+                subtitle = stringResource(AYMR.strings.pref_player_audio_prefer_dub_summary),
+            ),
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(AYMR.strings.pref_player_audio_apply_dub),
+                subtitle = stringResource(AYMR.strings.pref_player_audio_apply_dub_summary),
+                onClick = {
+                    scope.launch {
+                        val changed = applyDubPreferenceToAnimeSources(context, force = true)
+                        withUIContext {
+                            context.toast(
+                                context.stringResource(
+                                    AYMR.strings.pref_player_audio_apply_dub_result,
+                                    changed,
+                                ),
+                            )
+                        }
+                    }
                 },
             ),
         )

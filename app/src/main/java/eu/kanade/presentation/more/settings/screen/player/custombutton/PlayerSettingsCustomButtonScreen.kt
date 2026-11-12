@@ -41,7 +41,6 @@ object PlayerSettingsCustomButtonScreen : Screen() {
 
         CustomButtonScreen(
             state = successState,
-            onClickFAQ = { uriHandler.openUri("https://aniyomi.org/docs/guides/player-settings/custom-buttons") },
             onClickCreate = { screenModel.showDialog(CustomButtonDialog.Create) },
             onClickPrimary = { screenModel.togglePrimaryButton(it) },
             onClickEdit = { screenModel.showDialog(CustomButtonDialog.Edit(it)) },

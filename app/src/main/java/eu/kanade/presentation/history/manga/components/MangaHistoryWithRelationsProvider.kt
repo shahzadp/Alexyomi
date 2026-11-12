@@ -17,7 +17,6 @@ internal class MangaHistoryWithRelationsProvider : PreviewParameterProvider<Mang
         coverData = tachiyomi.domain.entries.manga.model.MangaCover(
             mangaId = 3L,
             sourceId = 4L,
-            isMangaFavorite = false,
             url = "https://example.com/cover.png",
             lastModified = 5L,
         ),
@@ -34,7 +33,6 @@ internal class MangaHistoryWithRelationsProvider : PreviewParameterProvider<Mang
         coverData = tachiyomi.domain.entries.manga.model.MangaCover(
             mangaId = 3L,
             sourceId = 4L,
-            isMangaFavorite = false,
             url = "https://example.com/cover.png",
             lastModified = 5L,
         ),
@@ -51,7 +49,6 @@ internal class MangaHistoryWithRelationsProvider : PreviewParameterProvider<Mang
         coverData = tachiyomi.domain.entries.manga.model.MangaCover(
             mangaId = 3L,
             sourceId = 4L,
-            isMangaFavorite = false,
             url = "https://example.com/cover.png",
             lastModified = 5L,
         ),

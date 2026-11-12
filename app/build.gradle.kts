@@ -2,6 +2,7 @@ import mihon.buildlogic.Config
 import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
+import java.util.Properties
 
 plugins {
     id("mihon.android.application")
@@ -13,8 +14,31 @@ plugins {
 
 shortcutHelper.setFilePath("./shortcuts.xml")
 
+// Signing credentials. They live in a gitignored file next to the keystore, so they are
+// never part of the repository. Without that file the release build falls back to no
+// signing config at all.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseKeystore = keystorePropertiesFile.exists() &&
+    keystoreProperties.getProperty("storeFile") != null
+
 android {
     namespace = "eu.kanade.tachiyomi"
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "xyz.jmir.tachiyomi.mi"
@@ -55,22 +79,14 @@ android {
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = true)}\"")
+
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
 
         val commonMatchingFallbacks = listOf(release.name)
 
-        create("preview") {
-            initWith(release)
-
-            applicationIdSuffix = ".debug"
-
-            versionNameSuffix = debug.versionNameSuffix
-            signingConfig = debug.signingConfig
-
-            matchingFallbacks.addAll(commonMatchingFallbacks)
-
-            buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
-        }
         create("benchmark") {
             initWith(release)
 
@@ -86,7 +102,6 @@ android {
     }
 
     sourceSets {
-        getByName("preview").res.srcDirs("src/debug/res")
         getByName("benchmark").res.srcDirs("src/debug/res")
     }
 
@@ -122,7 +137,6 @@ android {
                 "libsqlite3x",
                 "libswresample",
                 "libswscale",
-                "libtorrserver",
                 "libxml2",
             )
                 .map { "**/$it.so" }
@@ -157,6 +171,16 @@ android {
         aidl = false
         renderScript = false
         shaders = false
+    }
+
+    androidResources {
+        // Ship only the English strings. The 64 translations are kept in the repository
+        // (i18n/ and i18n-aniyomi/) and can be re-enabled by extending this list.
+        localeFilters += listOf("en")
+
+        // The bundled subtitle font is 6 MB and mpv already renders subtitles with the
+        // system fonts (see PlayerActivity.copyFontsDirectory), so it is not packaged.
+        ignoreAssetsPattern += "subfont.ttf"
     }
 
     lint {
@@ -194,7 +218,6 @@ dependencies {
     implementation(projects.data)
     implementation(projects.domain)
     implementation(projects.presentationCore)
-    implementation(projects.presentationWidget)
 
     // Compose
     implementation(compose.activity)
@@ -273,7 +296,6 @@ dependencies {
 
     // UI libraries
     implementation(libs.material)
-    implementation(libs.flexible.adapter.core)
     implementation(libs.photoview)
     implementation(libs.directionalviewpager) {
         exclude(group = "androidx.viewpager", module = "viewpager")
@@ -309,8 +331,6 @@ dependencies {
     // FFmpeg-kit
     implementation(aniyomilibs.ffmpeg.kit)
     implementation(aniyomilibs.arthenica.smartexceptions)
-    // TorrServer
-    implementation(aniyomilibs.torrserver)
     // seeker seek bar
     implementation(aniyomilibs.seeker)
     // true type parser
@@ -324,6 +344,47 @@ androidComponents {
             variantBuilder.enable = variantBuilder.productFlavors.containsAll(
                 listOf("default" to "dev"),
             )
+        }
+    }
+    onVariants { variant ->
+        // The mpv library bundles a 6 MB subtitle font that we don't use (mpv renders subtitles
+        // with the system fonts directory), so it is removed before the assets are compressed.
+        val variantName = variant.name
+        val capitalized = variantName.replaceFirstChar { it.uppercase() }
+        val mergedAssets = layout.buildDirectory.dir(
+            "intermediates/assets/$variantName/merge${capitalized}Assets",
+        )
+        val compressedAssets = layout.buildDirectory.dir(
+            "intermediates/compressed_assets/$variantName/compress${capitalized}Assets",
+        )
+
+        val stripSubtitleFont = tasks.register("stripSubtitleFont$capitalized") {
+            val assetsDir = mergedAssets
+            val compressedDir = compressedAssets
+            dependsOn("merge${capitalized}Assets")
+            inputs.dir(assetsDir)
+            doLast {
+                val font = assetsDir.get().asFile.resolve("subfont.ttf")
+                if (font.exists() && font.length() > 0) {
+                    // Truncate instead of deleting: the asset merger keeps a file list that the
+                    // compression step validates, and mpv doesn't need the font (it renders
+                    // subtitles with the system fonts directory).
+                    font.writeBytes(ByteArray(0))
+                    logger.lifecycle("Removed bundled subtitle font from $variantName assets")
+                }
+            }
+        }
+
+        // The compression step has to run after the font was removed
+        tasks.matching { it.name == "compress${capitalized}Assets" }.configureEach {
+            dependsOn(stripSubtitleFont)
+            // The cached output would contain the removed font again
+            outputs.doNotCacheIf("The bundled subtitle font is removed after the assets are merged") { true }
+        }
+
+        // Same for the packaging step, it would restore an APK with the font
+        tasks.matching { it.name == "package$capitalized" }.configureEach {
+            outputs.doNotCacheIf("The bundled subtitle font is removed from the packaged assets") { true }
         }
     }
     onVariants(selector().withFlavor("default" to "standard")) {

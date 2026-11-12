@@ -4,7 +4,10 @@ import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
+import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.getChangedAt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -16,11 +19,57 @@ import kotlin.coroutines.cancellation.CancellationException
 class HosterLoader {
     companion object {
         /**
+         * Returns true when the user wants dubbed audio. Extensions that ship a Sub/Dub preference
+         * mark the matching video as preferred, but not every extension does it for downloads, so the
+         * host falls back to looking at the video title/url.
+         */
+        private fun preferDub(): Boolean = try {
+            Injekt.get<AudioPreferences>().preferDubAnimeSources().get()
+        } catch (_: Exception) {
+            false
+        }
+
+        /**
+         * Heuristic that detects a dubbed video from its title/url.
+         */
+        private fun isDubVideo(video: Video): Boolean {
+            val text = "${video.videoTitle} ${video.videoUrl}".lowercase()
+            if (text.contains("dub")) return true
+            if (text.contains("sub")) return false
+            return text.contains("english")
+        }
+
+        /**
+         * Finds the first dubbed video of the given hosters.
+         */
+        private fun findDubVideo(availableHosters: List<IndexedValue<HosterState>>): Pair<Int, Int>? {
+            val dubHosterIdx = availableHosters.indexOfFirst {
+                (it.value as HosterState.Ready).let { hoster ->
+                    hoster.videoList zip hoster.videoState
+                }.any { (video, state) ->
+                    isDubVideo(video) && (state == Video.State.READY || state == Video.State.QUEUE)
+                }
+            }
+            if (dubHosterIdx == -1) return null
+
+            val videoList = (availableHosters[dubHosterIdx].value as HosterState.Ready).let { hoster ->
+                hoster.videoList zip hoster.videoState
+            }
+            val dubVideoIdx = videoList.indexOfFirst { (video, state) ->
+                isDubVideo(video) && (state == Video.State.READY || state == Video.State.QUEUE)
+            }
+            return availableHosters[dubHosterIdx].index to dubVideoIdx
+        }
+
+        /**
          * Check for the best video from the current hosterState.
          *
          * The first video with the `preferred` attribute is selected, however
          * if no such video is selected the first video with a non-empty url is selected.
          * If there are no viable videos at all, an error is thrown.
+         *
+         * When the user asked for dubbed audio, a dubbed video wins over a subtitled one,
+         * even if the extension marked the subtitled video as preferred.
          *
          * @return the indices of the hoster & video
          */
@@ -42,7 +91,20 @@ class HosterLoader {
                     hoster.videoList zip hoster.videoState
                 }
                 val prefVideoIdx = videoList.indexOfFirst(isPreferred)
+                val preferredVideo = videoList[prefVideoIdx].first
+
+                if (!preferDub() || isDubVideo(preferredVideo)) {
+                    return availableHosters[prefHosterIdx].index to prefVideoIdx
+                }
+
+                // The extension prefers a subtitled video, but the user wants the dub
+                findDubVideo(availableHosters)?.let { return it }
                 return availableHosters[prefHosterIdx].index to prefVideoIdx
+            }
+
+            // No video was marked as preferred: prefer the dubbed one when the user asked for it
+            if (preferDub()) {
+                findDubVideo(availableHosters)?.let { return it }
             }
 
             // Check for first video with non-empty url
@@ -87,11 +149,22 @@ class HosterLoader {
 
                             if (hosterState is HosterState.Ready) {
                                 val prefIndex = hosterState.videoList.indexOfFirst { it.preferred && !it.initialized }
-                                if (prefIndex != -1) {
-                                    val video = hosterState.videoList[prefIndex]
+                                // The user wants dubbed audio: a dubbed video wins over a subtitled one
+                                val dubIndex = if (preferDub()) {
+                                    hosterState.videoList.indexOfFirst { isDubVideo(it) && !it.initialized }
+                                } else {
+                                    -1
+                                }
+                                val selectedIndex = when {
+                                    prefIndex == -1 -> dubIndex
+                                    dubIndex != -1 && !isDubVideo(hosterState.videoList[prefIndex]) -> dubIndex
+                                    else -> prefIndex
+                                }
+                                if (selectedIndex != -1) {
+                                    val video = hosterState.videoList[selectedIndex]
                                     hosterStates[hosterIdx] =
                                         (hosterStates[hosterIdx] as HosterState.Ready).getChangedAt(
-                                            prefIndex,
+                                            selectedIndex,
                                             video,
                                             Video.State.LOAD_VIDEO,
                                         )
@@ -104,7 +177,7 @@ class HosterLoader {
 
                                     hosterStates[hosterIdx] =
                                         (hosterStates[hosterIdx] as HosterState.Ready).getChangedAt(
-                                            prefIndex,
+                                            selectedIndex,
                                             video,
                                             Video.State.ERROR,
                                         )

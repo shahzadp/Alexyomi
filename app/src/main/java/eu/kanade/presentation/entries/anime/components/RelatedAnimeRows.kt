@@ -20,10 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import eu.kanade.presentation.browse.InLibraryBadge
-import eu.kanade.presentation.library.components.CommonEntryItemDefaults
-import eu.kanade.presentation.library.components.EntryComfortableGridItem
-import eu.kanade.presentation.library.components.EntryCompactGridItem
+import eu.kanade.presentation.components.EntryComfortableGridItem
+import eu.kanade.presentation.components.EntryCompactGridItem
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.anime.model.AnimeRelationGroup
 import tachiyomi.domain.entries.anime.model.asAnimeCover
@@ -150,8 +148,6 @@ private fun RelatedAnimeItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val coverAlpha = if (anime.favorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f
-
     when (displayMode) {
         LibraryDisplayMode.ComfortableGrid,
         LibraryDisplayMode.List,
@@ -160,8 +156,7 @@ private fun RelatedAnimeItem(
                 title = anime.title,
                 titleMaxLines = 3,
                 coverData = anime.asAnimeCover(),
-                coverAlpha = coverAlpha,
-                coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+                coverAlpha = 1f,
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
@@ -170,8 +165,7 @@ private fun RelatedAnimeItem(
             EntryCompactGridItem(
                 title = anime.title,
                 coverData = anime.asAnimeCover(),
-                coverAlpha = coverAlpha,
-                coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+                coverAlpha = 1f,
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
@@ -179,8 +173,7 @@ private fun RelatedAnimeItem(
         LibraryDisplayMode.CoverOnlyGrid -> {
             EntryCompactGridItem(
                 coverData = anime.asAnimeCover(),
-                coverAlpha = coverAlpha,
-                coverBadgeStart = { InLibraryBadge(enabled = anime.favorite) },
+                coverAlpha = 1f,
                 onClick = onClick,
                 onLongClick = onLongClick,
             )

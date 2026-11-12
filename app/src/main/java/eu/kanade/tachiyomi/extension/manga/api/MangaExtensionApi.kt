@@ -14,6 +14,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import logcat.LogPriority
 import mihon.domain.extensionrepo.manga.interactor.GetMangaExtensionRepo
 import mihon.domain.extensionrepo.manga.interactor.UpdateMangaExtensionRepo
@@ -51,18 +53,51 @@ internal class MangaExtensionApi {
     private suspend fun getExtensions(extRepo: ExtensionRepo): List<MangaExtension.Available> {
         val repoBaseUrl = extRepo.baseUrl
         return try {
-            val response = networkService.client
-                .newCall(GET("$repoBaseUrl/index.min.json"))
-                .awaitSuccess()
-
-            with(json) {
-                response
-                    .parseAs<List<ExtensionJsonObject>>()
-                    .toExtensions(repoBaseUrl)
-            }
+            fetchExtensionStoreIndex(repoBaseUrl)
+                ?: fetchLegacyExtensionIndex(repoBaseUrl)
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Failed to get extensions from $repoBaseUrl" }
             emptyList()
+        }
+    }
+
+    /**
+     * Reads the modern extension index (`index.json`) used by current repositories.
+     *
+     * Repositories that adopted this format (Keiyoushi, among others) serve a stub
+     * `index.min.json` that only tells outdated clients to update, while the real
+     * extension list lives in `index.json` under `extensionList`.
+     *
+     * @return the extensions, or `null` when this repository doesn't use this format.
+     */
+    private suspend fun fetchExtensionStoreIndex(
+        repoBaseUrl: String,
+    ): List<MangaExtension.Available>? {
+        val response = runCatching {
+            networkService.client
+                .newCall(GET("$repoBaseUrl/index.json"))
+                .awaitSuccess()
+        }.getOrNull() ?: return null
+
+        val index = runCatching {
+            with(json) { response.parseAs<ExtensionStoreIndexJsonObject>() }
+        }.getOrNull() ?: return null
+
+        val extensions = index.extensionList?.extensions ?: return null
+        return extensions.mapNotNull { it.toExtension(repoBaseUrl) }
+    }
+
+    private suspend fun fetchLegacyExtensionIndex(
+        repoBaseUrl: String,
+    ): List<MangaExtension.Available> {
+        val response = networkService.client
+            .newCall(GET("$repoBaseUrl/index.min.json"))
+            .awaitSuccess()
+
+        return with(json) {
+            response
+                .parseAs<List<ExtensionJsonObject>>()
+                .toExtensions(repoBaseUrl)
         }
     }
 
@@ -112,8 +147,7 @@ internal class MangaExtensionApi {
     private fun List<ExtensionJsonObject>.toExtensions(repoUrl: String): List<MangaExtension.Available> {
         return this
             .filter {
-                val libVersion = it.extractLibVersion()
-                libVersion >= MangaExtensionLoader.LIB_VERSION_MIN && libVersion <= MangaExtensionLoader.LIB_VERSION_MAX
+                it.extractLibVersion() in MangaExtensionLoader.SUPPORTED_LIB_VERSIONS
             }
             .map {
                 MangaExtension.Available(
@@ -125,15 +159,53 @@ internal class MangaExtensionApi {
                     lang = it.lang,
                     isNsfw = it.nsfw == 1,
                     sources = it.sources?.map(extensionSourceMapper).orEmpty(),
-                    apkName = it.apk,
+                    apkUrl = "$repoUrl/apk/${it.apk}",
                     iconUrl = "$repoUrl/icon/${it.pkg}.png",
                     repoUrl = repoUrl,
                 )
             }
     }
 
+    private fun ExtensionStoreExtensionJsonObject.toExtension(
+        repoUrl: String,
+    ): MangaExtension.Available? {
+        if (packageName.isBlank()) return null
+        val libVersion = extensionLib?.contentOrNull?.toDoubleOrNull()
+            ?: versionName?.contentOrNull?.substringBeforeLast('.')?.toDoubleOrNull()
+            ?: return null
+        if (libVersion !in MangaExtensionLoader.SUPPORTED_LIB_VERSIONS) return null
+
+        val resources = resources ?: return null
+        val apkUrl = resources.apkUrl ?: return null
+        val sourceList = sources.orEmpty().mapNotNull { source ->
+            val id = source.id?.contentOrNull?.toLongOrNull() ?: return@mapNotNull null
+            MangaExtension.Available.MangaSource(
+                id = id,
+                lang = source.language.orEmpty(),
+                name = source.name.orEmpty(),
+                baseUrl = source.homeUrl.orEmpty(),
+            )
+        }
+
+        return MangaExtension.Available(
+            name = name.substringAfter("Tachiyomi: "),
+            pkgName = packageName,
+            versionName = versionName?.contentOrNull.orEmpty(),
+            versionCode = versionCode?.contentOrNull?.toLongOrNull() ?: 0L,
+            libVersion = libVersion,
+            lang = sourceList.firstOrNull { it.lang.isNotBlank() }?.lang ?: "all",
+            isNsfw = contentWarning?.contentOrNull?.let {
+                it.endsWith("_NSFW") || it.endsWith("_MIXED")
+            } ?: false,
+            sources = sourceList,
+            apkUrl = apkUrl.toAbsoluteUrl(repoUrl),
+            iconUrl = resources.iconUrl?.toAbsoluteUrl(repoUrl) ?: "$repoUrl/icon/$packageName.png",
+            repoUrl = repoUrl,
+        )
+    }
+
     fun getApkUrl(extension: MangaExtension.Available): String {
-        return "${extension.repoUrl}/apk/${extension.apkName}"
+        return extension.apkUrl
     }
 
     private fun ExtensionJsonObject.extractLibVersion(): Double {
@@ -160,6 +232,52 @@ private data class ExtensionSourceJsonObject(
     val name: String,
     val baseUrl: String,
 )
+
+/**
+ * Server format of `index.json` in modern extension repositories (Mihon 0.20+).
+ *
+ * The legacy `index.min.json` array is still read for repositories that didn't migrate.
+ */
+@Serializable
+private data class ExtensionStoreIndexJsonObject(
+    val extensionList: ExtensionStoreExtensionListJsonObject? = null,
+)
+
+@Serializable
+private data class ExtensionStoreExtensionListJsonObject(
+    val extensions: List<ExtensionStoreExtensionJsonObject> = emptyList(),
+)
+
+@Serializable
+private data class ExtensionStoreExtensionJsonObject(
+    val name: String = "",
+    val packageName: String = "",
+    val resources: ExtensionStoreResourcesJsonObject? = null,
+    val extensionLib: JsonPrimitive? = null,
+    val versionCode: JsonPrimitive? = null,
+    val versionName: JsonPrimitive? = null,
+    val contentWarning: JsonPrimitive? = null,
+    val sources: List<ExtensionStoreSourceJsonObject>? = null,
+)
+
+@Serializable
+private data class ExtensionStoreResourcesJsonObject(
+    val apkUrl: String? = null,
+    val iconUrl: String? = null,
+    val jarUrl: String? = null,
+)
+
+@Serializable
+private data class ExtensionStoreSourceJsonObject(
+    val id: JsonPrimitive? = null,
+    val name: String? = null,
+    val language: String? = null,
+    val homeUrl: String? = null,
+)
+
+private fun String.toAbsoluteUrl(repoUrl: String): String {
+    return if (startsWith("http://") || startsWith("https://")) this else "$repoUrl/${trimStart('/')}"
+}
 
 private val extensionSourceMapper: (ExtensionSourceJsonObject) -> MangaExtension.Available.MangaSource = {
     MangaExtension.Available.MangaSource(

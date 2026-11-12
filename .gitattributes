@@ -1,24 +1,43 @@
-* text=auto
-* text eol=lf
+# Alexyomi — upstream (aniyomiorg/aniyomi) merge rules.
+# `merge=ours` = if both sides changed the file, keep ours, discard upstream's
+# copy. Used to keep the decommissioned Aniyomi library feature out of merges.
+# See UPSTREAM_SYNC.md.
 
-# Windows forced line-endings
-/.idea/* text eol=crlf
+# ---------- Hard exclusions (files were deleted — keep them deleted) ----------
+/app/src/main/java/eu/kanade/tachiyomi/ui/library/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/updates/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/category/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/stats/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/data/library/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/browse/manga/migration/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/browse/anime/migration/** merge=ours
+/app/src/main/java/eu/kanade/presentation/library/** merge=ours
+/app/src/main/java/eu/kanade/presentation/updates/** merge=ours
+/app/src/main/java/eu/kanade/presentation/category/** merge=ours
+/app/src/main/java/eu/kanade/presentation/more/stats/** merge=ours
+/presentation-widget/** merge=ours
+/domain/src/main/java/tachiyomi/domain/updates/** merge=ours
+/data/src/main/java/tachiyomi/data/updates/** merge=ours
 
-# Gradle wrapper
-*.jar binary
-
-# Images
-*.webp binary
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.ico binary
-*.gz binary
-*.zip binary
-*.7z binary
-*.ttf binary
-*.eot binary
-*.woff binary
-*.pyc binary
-*.swp binary
+# ---------- Soft exclusions (rewritten to drop library UI — ours wins wholesale) ----------
+/app/src/main/java/eu/kanade/tachiyomi/ui/home/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/main/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/more/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/webview/** merge=ours
+/app/src/main/java/eu/kanade/presentation/more/** merge=ours
+/app/src/main/java/eu/kanade/presentation/util/** merge=ours
+/app/src/main/java/eu/kanade/presentation/components/** merge=ours
+/app/src/main/java/eu/kanade/presentation/browse/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/browse/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/entries/** merge=ours
+/app/src/main/java/eu/kanade/presentation/entries/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/ui/history/** merge=ours
+/app/src/main/java/eu/kanade/presentation/history/** merge=ours
+/app/src/main/java/eu/kanade/domain/ui/** merge=ours
+/app/src/main/java/eu/kanade/domain/DomainModule.kt merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/data/download/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/data/notification/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/data/backup/restore/restorers/** merge=ours
+/app/src/main/java/eu/kanade/tachiyomi/App.kt merge=ours
+/app/build.gradle.kts merge=ours
+/settings.gradle.kts merge=ours

@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.content.pm.PackageInfoCompat
 import dalvik.system.PathClassLoader
 import eu.kanade.domain.extension.manga.interactor.TrustMangaExtension
@@ -53,8 +54,20 @@ internal object MangaExtensionLoader {
     private const val METADATA_SOURCE_CLASS = "tachiyomi.extension.class"
     private const val METADATA_SOURCE_FACTORY = "tachiyomi.extension.factory"
     private const val METADATA_NSFW = "tachiyomi.extension.nsfw"
+    private const val METADATA_NAME = "tachiyomix.name"
+    private const val METADATA_EXTENSION_LIB = "tachiyomix.extensionLib"
+    private const val METADATA_CONTENT_WARNING = "tachiyomix.contentWarning"
     const val LIB_VERSION_MIN = 1.4
-    const val LIB_VERSION_MAX = 1.5
+    const val LIB_VERSION_MAX = 1.6
+
+    /**
+     * Extension library versions this app can host.
+     *
+     * 1.4 and 1.5 are the legacy `extensions-lib` versions, 1.6 is the current TachiyomiX
+     * version used by modern extension builds. Extensions outside this list link against APIs
+     * the app does not provide.
+     */
+    val SUPPORTED_LIB_VERSIONS = listOf(1.4, 1.5, 1.6)
 
     @Suppress("DEPRECATION")
     private val PACKAGE_FLAGS = PackageManager.GET_CONFIGURATIONS or
@@ -248,10 +261,10 @@ internal object MangaExtensionLoader {
         val pkgInfo = extensionInfo.packageInfo
         val appInfo = pkgInfo.applicationInfo!!
         val pkgName = pkgInfo.packageName
+        val metaData = appInfo.metaData
 
-        val extName = pkgManager.getApplicationLabel(appInfo).toString().substringAfter(
-            "Tachiyomi: ",
-        )
+        val extName = metaData.optString(METADATA_NAME)
+            ?: pkgManager.getApplicationLabel(appInfo).toString().substringAfter("Tachiyomi: ")
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
 
@@ -260,12 +273,17 @@ internal object MangaExtensionLoader {
             return MangaLoadResult.Error
         }
 
-        // Validate lib version
-        val libVersion = versionName.substringBeforeLast('.').toDoubleOrNull()
-        if (libVersion == null || libVersion < LIB_VERSION_MIN || libVersion > LIB_VERSION_MAX) {
+        // Validate lib version. TachiyomiX 1.6+ extensions declare it in their manifest;
+        // legacy extensions encode it as the versionName prefix (e.g. "1.4.7" -> 1.4).
+        val libVersion = metaData.optFloat(METADATA_EXTENSION_LIB)
+            ?.takeUnless { it == 0.0f }
+            ?.toString()
+            ?.toDoubleOrNull()
+            ?: versionName.substringBeforeLast('.').toDoubleOrNull()
+        if (libVersion == null || libVersion !in SUPPORTED_LIB_VERSIONS) {
             logcat(LogPriority.WARN) {
-                "Lib version is $libVersion, while only versions " +
-                    "$LIB_VERSION_MIN to $LIB_VERSION_MAX are allowed"
+                "Lib version is $libVersion, while only version(s) " +
+                    "${SUPPORTED_LIB_VERSIONS.joinToString()} are supported"
             }
             return MangaLoadResult.Error
         }
@@ -287,7 +305,8 @@ internal object MangaExtensionLoader {
             return MangaLoadResult.Untrusted(extension)
         }
 
-        val isNsfw = appInfo.metaData.getInt(METADATA_NSFW) == 1
+        val contentWarning = metaData.optInt(METADATA_CONTENT_WARNING) ?: 0
+        val isNsfw = metaData.optInt(METADATA_NSFW) == 1 || contentWarning == 1 || contentWarning == 2
         if (!loadNsfwSource && isNsfw) {
             logcat(LogPriority.WARN) { "NSFW extension $pkgName not allowed" }
             return MangaLoadResult.Error
@@ -300,7 +319,13 @@ internal object MangaExtensionLoader {
             return MangaLoadResult.Error
         }
 
-        val sources = appInfo.metaData.getString(METADATA_SOURCE_CLASS)!!
+        val sourceClasses = metaData.optString(METADATA_SOURCE_CLASS)
+        if (sourceClasses.isNullOrBlank()) {
+            logcat(LogPriority.WARN) { "Missing source class for extension $extName ($pkgName)" }
+            return MangaLoadResult.Error
+        }
+
+        val sources = sourceClasses
             .split(";")
             .map {
                 val sourceClass = it.trim()
@@ -361,7 +386,7 @@ internal object MangaExtensionLoader {
             lang = lang,
             isNsfw = isNsfw,
             sources = sources,
-            pkgFactory = appInfo.metaData.getString(METADATA_SOURCE_FACTORY),
+            pkgFactory = metaData.optString(METADATA_SOURCE_FACTORY),
             icon = appInfo.loadIcon(pkgManager),
             isShared = extensionInfo.isShared,
         )
@@ -398,6 +423,17 @@ internal object MangaExtensionLoader {
     private fun isPackageAnExtension(pkgInfo: PackageInfo): Boolean {
         return pkgInfo.reqFeatures.orEmpty().any { it.name == EXTENSION_FEATURE }
     }
+
+    // Manifest meta-data can be declared with unexpected types by third-party builds, so every
+    // read is defensive: a malformed entry must not take down the extension list.
+    private fun Bundle?.optString(key: String): String? =
+        this?.let { runCatching { it.getString(key) }.getOrNull() }
+
+    private fun Bundle?.optInt(key: String): Int? =
+        this?.let { runCatching { it.getInt(key) }.getOrNull() }
+
+    private fun Bundle?.optFloat(key: String): Float? =
+        this?.let { runCatching { it.getFloat(key) }.getOrNull() }
 
     /**
      * Returns the signatures of the package or null if it's not signed.

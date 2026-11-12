@@ -534,6 +534,7 @@ private fun VideoList(
                                 true,
                                 anime.source,
                                 currentVideo,
+                                allowExternalForOnline = true,
                             )
                         }
                     },

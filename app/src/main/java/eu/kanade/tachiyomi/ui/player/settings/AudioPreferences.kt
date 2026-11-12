@@ -13,6 +13,23 @@ class AudioPreferences(
     fun audioChannels() = preferenceStore.getEnum("pref_audio_config", AudioChannels.AutoSafe)
     fun volumeBoostCap() = preferenceStore.getInt("pref_audio_volume_boost_cap", 30)
 
+    /**
+     * Whether the audio type preference of anime sources should be set to "Dub" instead of "Sub".
+     */
+    fun preferDubAnimeSources() = preferenceStore.getBoolean("pref_audio_prefer_dub", true)
+
+    /**
+     * Ids of the anime sources the dub preference was already applied to.
+     */
+    fun dubAppliedSourceIds() = preferenceStore.getStringSet("pref_audio_dub_applied_sources", emptySet())
+
+    /**
+     * Version of the source rules (dub audio + quality) that were applied to the sources.
+     *
+     * Used to reprocess every source when a rule changed.
+     */
+    fun sourceRulesVersion() = preferenceStore.getInt("pref_audio_source_rules_version", 0)
+
     // Non-preferences
 
     fun audioDelay() = preferenceStore.getInt("pref_audio_delay", 0)

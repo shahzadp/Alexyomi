@@ -35,7 +35,6 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
-import eu.kanade.tachiyomi.util.chapter.filterDownloadedChapters
 import eu.kanade.tachiyomi.util.chapter.removeDuplicates
 import eu.kanade.tachiyomi.util.editCover
 import eu.kanade.tachiyomi.util.lang.byteSize
@@ -207,13 +206,6 @@ class ReaderViewModel @JvmOverloads constructor(
             .run {
                 if (readerPreferences.skipDupe().get()) {
                     removeDuplicates(selectedChapter)
-                } else {
-                    this
-                }
-            }
-            .run {
-                if (basePreferences.downloadedOnly().get()) {
-                    filterDownloadedChapters(manga)
                 } else {
                     this
                 }
@@ -888,11 +880,7 @@ class ReaderViewModel @JvmOverloads constructor(
         viewModelScope.launchNonCancellable {
             val result = try {
                 manga.editCover(Injekt.get(), stream())
-                if (manga.isLocal() || manga.favorite) {
-                    SetAsCoverResult.Success
-                } else {
-                    SetAsCoverResult.AddToLibraryFirst
-                }
+                SetAsCoverResult.Success
             } catch (e: Exception) {
                 SetAsCoverResult.Error
             }
@@ -902,7 +890,6 @@ class ReaderViewModel @JvmOverloads constructor(
 
     enum class SetAsCoverResult {
         Success,
-        AddToLibraryFirst,
         Error,
     }
 

@@ -7,7 +7,6 @@ import kotlinx.serialization.json.JsonObject
 data class AnimeUpdate(
     val id: Long,
     val source: Long? = null,
-    val favorite: Boolean? = null,
     val lastUpdate: Long? = null,
     val nextUpdate: Long? = null,
     val fetchInterval: Int? = null,
@@ -40,7 +39,6 @@ fun Anime.toAnimeUpdate(): AnimeUpdate {
     return AnimeUpdate(
         id = id,
         source = source,
-        favorite = favorite,
         lastUpdate = lastUpdate,
         nextUpdate = nextUpdate,
         fetchInterval = fetchInterval,

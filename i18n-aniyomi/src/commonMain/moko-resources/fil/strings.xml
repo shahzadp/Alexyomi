@@ -218,7 +218,7 @@
     <string name="manga_categories">Kategorya ng Manga</string>
     <string name="general_categories">Mga kategorya</string>
     <string name="anime_categories">Mga Kategorya ng Anime</string>
-    <string name="entries">Mga entry ng aklatan</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Mga kabanata at episode</string>
     <string name="episodes">Mga Episode</string>
     <string name="backup_settings_warning">Babala: Ang pag-back up ng mga setting ay mag-iimbak din ng iyong mga track password, huwag ibahagi ang backup na file na ito!</string>

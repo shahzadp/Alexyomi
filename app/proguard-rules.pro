@@ -21,6 +21,11 @@
 -keep,allowoptimization class is.xyz.mpv.** { public protected *; }
 -keep,allowoptimization class com.arthenica.** { public protected *; }
 
+# The zstd support of OkHttp. The app itself doesn't decode zstd, but the extensions do and
+# they load the classes from the host app - without these rules R8 strips them and the
+# extension dies with a NoClassDefFoundError.
+-keep class com.squareup.zstd.** { *; }
+
 # From extensions-lib
 -keep,allowoptimization class eu.kanade.tachiyomi.network.interceptor.RateLimitInterceptorKt { public protected *; }
 -keep,allowoptimization class eu.kanade.tachiyomi.network.interceptor.SpecificHostRateLimitInterceptorKt { public protected *; }

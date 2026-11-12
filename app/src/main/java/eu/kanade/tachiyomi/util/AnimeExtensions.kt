@@ -42,7 +42,7 @@ suspend fun Anime.editCover(
     if (isLocal()) {
         coverManager.update(toSAnime(), stream)
         updateAnime.awaitUpdateCoverLastModified(id)
-    } else if (favorite) {
+    } else {
         coverCache.setCustomCoverToCache(this, stream)
         updateAnime.awaitUpdateCoverLastModified(id)
     }
@@ -57,7 +57,7 @@ suspend fun Anime.editBackground(
     if (isLocal()) {
         backgroundManager.update(toSAnime(), stream)
         updateAnime.awaitUpdateBackgroundLastModified(id)
-    } else if (favorite) {
+    } else {
         backgroundCache.setCustomBackgroundToCache(this, stream)
         updateAnime.awaitUpdateBackgroundLastModified(id)
     }

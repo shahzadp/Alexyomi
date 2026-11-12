@@ -23,7 +23,6 @@ object AnimeHistoryMapper {
         title: String,
         thumbnailUrl: String?,
         sourceId: Long,
-        isFavorite: Boolean,
         coverLastModified: Long,
         episodeNumber: Double,
         seenAt: Date?,
@@ -37,7 +36,6 @@ object AnimeHistoryMapper {
         coverData = AnimeCover(
             animeId = animeId,
             sourceId = sourceId,
-            isAnimeFavorite = isFavorite,
             url = thumbnailUrl,
             lastModified = coverLastModified,
         ),

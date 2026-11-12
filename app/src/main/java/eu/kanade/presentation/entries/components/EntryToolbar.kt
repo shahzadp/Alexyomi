@@ -35,9 +35,7 @@ fun EntryToolbar(
     onClickFilter: () -> Unit,
     onClickShare: (() -> Unit)?,
     onClickDownload: ((DownloadAction) -> Unit)?,
-    onClickEditCategory: (() -> Unit)?,
     onClickRefresh: () -> Unit,
-    onClickMigrate: (() -> Unit)?,
     onClickSettings: (() -> Unit)?,
     // Anime only
     changeAnimeSkipIntro: (() -> Unit)?,
@@ -128,23 +126,6 @@ fun EntryToolbar(
                             onClick = onClickRefresh,
                         ),
                     )
-
-                    if (onClickEditCategory != null) {
-                        add(
-                            AppBar.OverflowAction(
-                                title = stringResource(MR.strings.action_edit_categories),
-                                onClick = onClickEditCategory,
-                            ),
-                        )
-                    }
-                    if (onClickMigrate != null) {
-                        add(
-                            AppBar.OverflowAction(
-                                title = stringResource(MR.strings.action_migrate),
-                                onClick = onClickMigrate,
-                            ),
-                        )
-                    }
                     if (onClickShare != null) {
                         add(
                             AppBar.OverflowAction(

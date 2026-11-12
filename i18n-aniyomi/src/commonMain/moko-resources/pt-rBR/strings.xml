@@ -237,7 +237,7 @@
     <string name="manga_categories">Categorias de Mangá</string>
     <string name="general_categories">Categorias</string>
     <string name="anime_categories">Categorias de Anime</string>
-    <string name="entries">Entradas da biblioteca</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Capítulos e episódios</string>
     <string name="episodes">Episódios</string>
     <string name="backup_settings_warning">Aviso: o backup das configurações também armazenará suas senhas de rastreamento, então não compartilhe este arquivo de backup!</string>

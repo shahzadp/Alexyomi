@@ -135,7 +135,7 @@
     <string name="manga_categories">Manga-Kategorien</string>
     <string name="general_categories">Kategorien</string>
     <string name="anime_categories">Anime-Kategorien</string>
-    <string name="entries">Bibliothekseinträge</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Kapitel und Folgen</string>
     <string name="episodes">Folgen</string>
     <string name="backup_settings_warning">Warnung: Wenn du die Einstellungen sicherst, werden auch deine Passwörter zu Trackingdiensten gespeichert, teile deine Sicherungsdatei mit niemandem!</string>

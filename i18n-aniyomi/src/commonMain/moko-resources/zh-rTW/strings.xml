@@ -89,7 +89,7 @@
     <string name="manga_categories">類別</string>
     <string name="general_categories">分類</string>
     <string name="anime_categories">動漫分類</string>
-    <string name="entries">媒體櫃目錄</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">章節和集數</string>
     <string name="episodes">集數</string>
     <string name="backup_settings_warning">警告：備份設定將同時存儲您的軌跡密碼，不要分享此備份文件！</string>

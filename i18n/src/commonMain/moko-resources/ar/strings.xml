@@ -2,7 +2,7 @@
 <resources>
     <string name="name">الاسم</string>
     <string name="categories">الفئات</string>
-    <string name="manga">إدخالات المكتبة</string>
+    <string name="manga">Manga</string>
     <string name="chapters">الفصول</string>
     <string name="track">التعقب</string>
     <string name="history">التاريخ</string>

@@ -4,10 +4,8 @@ import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import tachiyomi.data.handlers.anime.AnimeDatabaseHandler
-import tachiyomi.domain.source.anime.model.StubAnimeSource
 import tachiyomi.domain.source.anime.repository.AnimeSourcePagingSourceType
 import tachiyomi.domain.source.anime.repository.AnimeSourceRepository
 import tachiyomi.domain.source.anime.service.AnimeSourceManager
@@ -34,22 +32,6 @@ class AnimeSourceRepositoryImpl(
                 .filterIsInstance<AnimeHttpSource>()
                 .map(::mapSourceToDomainSource)
         }
-    }
-
-    override fun getAnimeSourcesWithFavoriteCount(): Flow<List<Pair<DomainSource, Long>>> {
-        return combine(
-            handler.subscribeToList { animesQueries.getAnimeSourceIdWithFavoriteCount() },
-            sourceManager.sources,
-        ) { sourceIdWithFavoriteCount, _ -> sourceIdWithFavoriteCount }
-            .map {
-                it.map { (sourceId, count) ->
-                    val source = sourceManager.getOrStub(sourceId)
-                    val domainSource = mapSourceToDomainSource(source).copy(
-                        isStub = source is StubAnimeSource,
-                    )
-                    domainSource to count
-                }
-            }
     }
 
     override fun searchAnime(

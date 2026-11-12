@@ -237,7 +237,7 @@
     <string name="manga_categories">Kategori Manga</string>
     <string name="general_categories">Kategori</string>
     <string name="anime_categories">Kategori Anime</string>
-    <string name="entries">Entri pustaka</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">chapter dan episode</string>
     <string name="episodes">Episode</string>
     <string name="backup_settings_warning">Peringatan: Mencadangkan pengaturan akan menyimpan kata sandi anda juga, jangan bagikan file cadangan ini!</string>

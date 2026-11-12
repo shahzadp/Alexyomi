@@ -62,7 +62,6 @@ import eu.kanade.tachiyomi.databinding.ReaderActivityBinding
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.main.MainActivity
-import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.AddToLibraryFirst
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.Error
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.Success
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
@@ -167,12 +166,6 @@ class ReaderActivity : BaseActivity() {
                 finish()
                 return
             }
-            NotificationReceiver.dismissNotification(
-                this,
-                manga.hashCode(),
-                Notifications.ID_NEW_CHAPTERS,
-            )
-
             lifecycleScope.launchNonCancellable {
                 val initResult = viewModel.init(manga, chapter)
                 if (!initResult.getOrDefault(false)) {
@@ -773,7 +766,6 @@ class ReaderActivity : BaseActivity() {
         toast(
             when (result) {
                 Success -> MR.strings.cover_updated
-                AddToLibraryFirst -> MR.strings.notification_first_add_to_library
                 Error -> MR.strings.notification_cover_update_failed
             },
         )

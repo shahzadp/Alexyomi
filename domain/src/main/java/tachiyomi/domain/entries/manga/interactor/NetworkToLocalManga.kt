@@ -14,13 +14,9 @@ class NetworkToLocalManga(
                 val id = insertManga(manga)
                 manga.copy(id = id!!)
             }
-            !localManga.favorite -> {
-                // if the manga isn't a favorite, set its display title from source
-                // if it later becomes a favorite, updated title will go to db
-                localManga.copy(title = manga.title)
-            }
             else -> {
-                localManga
+                // always take the latest display title from source
+                localManga.copy(title = manga.title)
             }
         }
     }

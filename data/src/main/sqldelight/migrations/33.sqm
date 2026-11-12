@@ -1,0 +1,86 @@
+DROP VIEW IF EXISTS updatesView;
+DROP VIEW IF EXISTS libraryView;
+DROP VIEW IF EXISTS historyView;
+DROP TRIGGER IF EXISTS update_last_favorite_at_mangas;
+DROP TRIGGER IF EXISTS update_last_modified_at_mangas;
+DROP TRIGGER IF EXISTS update_manga_version;
+DROP INDEX IF EXISTS library_favorite_index;
+DROP INDEX IF EXISTS mangas_url_index;
+
+ALTER TABLE mangas RENAME TO mangas_temp;
+CREATE TABLE mangas(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    source INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    artist TEXT,
+    author TEXT,
+    description TEXT,
+    genre TEXT,
+    title TEXT NOT NULL,
+    status INTEGER NOT NULL,
+    thumbnail_url TEXT,
+    last_update INTEGER,
+    next_update INTEGER,
+    initialized INTEGER AS Boolean NOT NULL,
+    viewer INTEGER NOT NULL,
+    chapter_flags INTEGER NOT NULL,
+    cover_last_modified INTEGER NOT NULL,
+    date_added INTEGER NOT NULL,
+    update_strategy INTEGER NOT NULL DEFAULT 0,
+    calculate_interval INTEGER DEFAULT 0 NOT NULL,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    version INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO mangas
+SELECT _id,source,url,artist,author,description,genre,title,status,thumbnail_url,last_update,next_update,initialized,viewer,chapter_flags,cover_last_modified,date_added,update_strategy,calculate_interval,last_modified_at,version,is_syncing
+FROM mangas_temp;
+
+CREATE INDEX mangas_url_index ON mangas(url);
+
+CREATE TRIGGER update_last_modified_at_mangas
+AFTER UPDATE ON mangas
+FOR EACH ROW
+BEGIN
+  UPDATE mangas
+  SET last_modified_at = strftime('%s', 'now')
+  WHERE _id = new._id;
+END;
+
+CREATE TRIGGER update_manga_version AFTER UPDATE ON mangas
+BEGIN
+    UPDATE mangas SET version = version + 1
+    WHERE _id = new._id AND new.is_syncing = 0 AND (
+        new.url != old.url OR
+        new.description != old.description
+    );
+END;
+
+CREATE VIEW historyView AS
+SELECT
+    history._id AS id,
+    mangas._id AS mangaId,
+    chapters._id AS chapterId,
+    mangas.title,
+    mangas.thumbnail_url AS thumbnailUrl,
+    mangas.source,
+    mangas.cover_last_modified,
+    chapters.chapter_number AS chapterNumber,
+    history.last_read AS readAt,
+    history.time_read AS readDuration,
+    max_last_read.last_read AS maxReadAt,
+    max_last_read.chapter_id AS maxReadAtChapterId
+FROM mangas
+JOIN chapters
+ON mangas._id = chapters.manga_id
+JOIN history
+ON chapters._id = history.chapter_id
+JOIN (
+    SELECT chapters.manga_id,chapters._id AS chapter_id, MAX(history.last_read) AS last_read
+    FROM chapters JOIN history
+    ON chapters._id = history.chapter_id
+    GROUP BY chapters.manga_id
+) AS max_last_read
+ON chapters.manga_id = max_last_read.manga_id;
+
+DROP TABLE mangas_temp;

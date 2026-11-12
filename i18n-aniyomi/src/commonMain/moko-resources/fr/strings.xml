@@ -109,7 +109,7 @@
     <string name="manga_categories">Catégories Manga</string>
     <string name="general_categories">Catégories</string>
     <string name="anime_categories">Catégories animés</string>
-    <string name="entries">Entrées de la bibliothèque</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Chapitres et épisodes</string>
     <string name="episodes">Épisodes</string>
     <string name="backup_settings_warning">Avertissement : La sauvegarde des paramètres stocke également les mots de passe de vos pistes, ne partagez pas ce fichier de sauvegarde !</string>

@@ -252,13 +252,18 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
     )
 
     private fun setupAudioOptions() {
-        MPVLib.setOptionString("alang", audioPreferences.preferredAudioLanguages().get())
+        // Default to English so dubbed tracks win over the device language
+        val audioLangs = audioPreferences.preferredAudioLanguages().get().ifBlank { "en" }
+        MPVLib.setOptionString("alang", audioLangs)
         MPVLib.setOptionString("audio-delay", (audioPreferences.audioDelay().get() / 1000.0).toString())
         MPVLib.setOptionString("audio-pitch-correction", audioPreferences.enablePitchCorrection().get().toString())
         MPVLib.setOptionString("volume-max", (audioPreferences.volumeBoostCap().get() + 100).toString())
     }
 
     private fun setupSubtitlesOptions() {
+        // Default to English subtitles as well
+        val subLangs = subtitlePreferences.preferredSubLanguages().get().ifBlank { "en" }
+        MPVLib.setOptionString("slang", subLangs)
         MPVLib.setOptionString("sub-delay", (subtitlePreferences.subtitlesDelay().get() / 1000.0).toString())
         MPVLib.setOptionString("sub-speed", subtitlePreferences.subtitlesSpeed().get().toString())
         MPVLib.setOptionString(

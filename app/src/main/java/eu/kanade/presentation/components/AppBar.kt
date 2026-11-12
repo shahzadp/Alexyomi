@@ -8,10 +8,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import coil3.compose.AsyncImage
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MoreVert
@@ -215,6 +225,41 @@ fun AppBarActions(
     actions: ImmutableList<AppBar.AppBarAction>,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+
+    actions.filterIsInstance<AppBar.AvatarAction>().map { action ->
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = {
+                PlainTooltip {
+                    Text(action.contentDescription)
+                }
+            },
+            state = rememberTooltipState(),
+        ) {
+            IconButton(
+                onClick = action.onClick,
+                enabled = action.enabled,
+            ) {
+                if (action.pictureUrl != null) {
+                    AsyncImage(
+                        model = action.pictureUrl,
+                        contentDescription = action.contentDescription,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(30.dp)
+                            .clip(CircleShape),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.PersonOutline,
+                        contentDescription = action.contentDescription,
+                        tint = LocalContentColor.current,
+                    )
+                }
+            }
+        }
+    }
 
     actions.filterIsInstance<AppBar.Action>().map {
         TooltipBox(
@@ -445,6 +490,13 @@ sealed interface AppBar {
         val title: String,
         val icon: ImageVector,
         val iconTint: Color? = null,
+        val onClick: () -> Unit,
+        val enabled: Boolean = true,
+    ) : AppBarAction
+
+    data class AvatarAction(
+        val pictureUrl: String?,
+        val contentDescription: String,
         val onClick: () -> Unit,
         val enabled: Boolean = true,
     ) : AppBarAction

@@ -6,17 +6,23 @@ import eu.kanade.tachiyomi.data.database.models.anime.AnimeTrack
 import eu.kanade.tachiyomi.data.database.models.manga.MangaTrack
 import eu.kanade.tachiyomi.data.track.model.AnimeTrackSearch
 import eu.kanade.tachiyomi.data.track.model.MangaTrackSearch
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALAnimeListResponse
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALAnime
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALAnimeListStatusResponse
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListAnimeItem
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListAnimeItemStatus
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListMangaItem
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListMangaItemStatus
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALMangaListStatusResponse
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALManga
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALMangaListResponse
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALOAuth
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserProfile
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALSearchResult
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUser
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserSearchResult
 import eu.kanade.tachiyomi.network.DELETE
+import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.awaitSuccess
@@ -47,6 +53,12 @@ class MyAnimeListApi(
 
     private val authClient = client.newBuilder().addInterceptor(interceptor).build()
 
+    // Null = not yet determined whether the extended list fields syntax works
+    private var extendedFieldsSupported: Boolean? = null
+
+    // Same, for manga
+    private var extendedMangaFieldsSupported: Boolean? = null
+
     suspend fun getAccessToken(authCode: String): MALOAuth {
         return withIOContext {
             val formBody: RequestBody = FormBody.Builder()
@@ -55,8 +67,11 @@ class MyAnimeListApi(
                 .add("code_verifier", codeVerifier)
                 .add("grant_type", "authorization_code")
                 .build()
+            val headers = Headers.Builder()
+                .add(CLIENT_ID_HEADER, CLIENT_ID)
+                .build()
             with(json) {
-                client.newCall(POST("$BASE_OAUTH_URL/token", body = formBody))
+                client.newCall(POST("$BASE_OAUTH_URL/token", body = formBody, headers = headers))
                     .awaitSuccess()
                     .parseAs()
             }
@@ -102,7 +117,6 @@ class MyAnimeListApi(
             val url = "$BASE_API_URL/anime".toUri().buildUpon()
                 // MAL API throws a 400 when the query is over 64 characters...
                 .appendQueryParameter("q", query.take(64))
-                .appendQueryParameter("q", query)
                 .appendQueryParameter("nsfw", "true")
                 .build()
             with(json) {
@@ -143,6 +157,45 @@ class MyAnimeListApi(
                             start_date = it.startDate ?: ""
                         }
                     }
+            }
+        }
+    }
+
+    /**
+     * Lightweight search that returns the id and the title of the matches.
+     *
+     * Unlike [searchAnime] this doesn't fetch the details of every result, so it stays cheap
+     * enough to be used while an anime page is opening.
+     */
+    suspend fun searchAnimeTitles(query: String, limit: Int = 20): List<Pair<Int, String>> {
+        return searchTitles("$BASE_API_URL/anime", query, limit)
+    }
+
+    /**
+     * The same as [searchAnimeTitles], for mangas.
+     */
+    suspend fun searchMangaTitles(query: String, limit: Int = 20): List<Pair<Int, String>> {
+        return searchTitles("$BASE_API_URL/manga", query, limit)
+    }
+
+    private suspend fun searchTitles(
+        baseUrl: String,
+        query: String,
+        limit: Int,
+    ): List<Pair<Int, String>> {
+        return withIOContext {
+            val url = baseUrl.toUri().buildUpon()
+                // MAL API throws a 400 when the query is over 64 characters...
+                .appendQueryParameter("q", query.take(64))
+                .appendQueryParameter("limit", limit.toString())
+                .appendQueryParameter("nsfw", "true")
+                .build()
+            with(json) {
+                authClient.newCall(GET(url.toString()))
+                    .awaitSuccess()
+                    .parseAs<MALSearchResult>()
+                    .data
+                    .map { it.node.id to it.node.title }
             }
         }
     }
@@ -304,11 +357,11 @@ class MyAnimeListApi(
 
     suspend fun findListItemsAnime(query: String, offset: Int = 0): List<AnimeTrackSearch> {
         return withIOContext {
-            val myListSearchResult = getListPage(offset)
+            val myListSearchResult = getAnimeListPage(offset = offset)
 
             val matches = myListSearchResult.data
                 .filter { it.node.title.contains(query, ignoreCase = true) }
-                .map { async { getAnimeDetails(it.node.id) } }
+                .map { async { getAnimeDetails(it.node.id.toInt()) } }
                 .awaitAll()
 
             // Check next page if there's more
@@ -323,6 +376,304 @@ class MyAnimeListApi(
     private suspend fun getListPage(offset: Int): MALUserSearchResult {
         return withIOContext {
             val urlBuilder = "$BASE_API_URL/users/@me/mangalist".toUri().buildUpon()
+                .appendQueryParameter("fields", "list_status{start_date,finish_date}")
+                .appendQueryParameter("limit", LIST_PAGINATION_AMOUNT.toString())
+            if (offset > 0) {
+                urlBuilder.appendQueryParameter("offset", offset.toString())
+            }
+
+            val request = Request.Builder()
+                .url(urlBuilder.build().toString())
+                .get()
+                .build()
+            with(json) {
+                authClient.newCall(request)
+                    .awaitSuccess()
+                    .parseAs()
+            }
+        }
+    }
+
+    /**
+     * Paged fetch of the user's anime list. Tries to include extra node fields
+     * (episode count, score) once; if the API rejects them with a 400, the
+     * result is cached so later pages don't each pay for the failed request.
+     */
+    suspend fun animeListPage(
+        status: String? = null,
+        limit: Int = LIST_PAGINATION_AMOUNT,
+        offset: Int = 0,
+    ): MALAnimeListResponse {
+        val extendedFields = "list_status{start_date,finish_date,is_rewatching,num_watched_episodes,score,status,updated_at}," +
+            "node{id,title,num_episodes,mean,main_picture{medium,large},status,media_type,start_date}"
+        val basicFields = "list_status{start_date,finish_date,is_rewatching,num_watched_episodes,score,status}"
+
+        if (extendedFieldsSupported == false) {
+            return fetchAnimeListPage(status, limit, offset, basicFields) ?: MALAnimeListResponse()
+        }
+        val extended = fetchAnimeListPage(status, limit, offset, extendedFields)
+        extendedFieldsSupported = extended != null
+        if (extended != null) {
+            return extended
+        }
+        return fetchAnimeListPage(status, limit, offset, basicFields) ?: MALAnimeListResponse()
+    }
+
+    private suspend fun fetchAnimeListPage(
+        status: String?,
+        limit: Int,
+        offset: Int,
+        fields: String,
+    ): MALAnimeListResponse? {
+        return withIOContext {
+            val urlBuilder = "$BASE_API_URL/users/@me/animelist".toUri().buildUpon()
+                .appendQueryParameter("fields", fields)
+                .appendQueryParameter("limit", limit.toString())
+                .appendQueryParameter("nsfw", "true")
+            status?.let { urlBuilder.appendQueryParameter("status", it) }
+            if (offset > 0) {
+                urlBuilder.appendQueryParameter("offset", offset.toString())
+            }
+
+            val request = Request.Builder()
+                .url(urlBuilder.build().toString())
+                .get()
+                .build()
+            try {
+                with(json) {
+                    authClient.newCall(request)
+                        .awaitSuccess()
+                        .parseAs()
+                }
+            } catch (e: HttpException) {
+                if (e.code == 400) null else throw e
+            }
+        }
+    }
+
+    /**
+     * Paged fetch of the user's manga list, mirroring [animeListPage].
+     * Extended node fields are requested once; if the API rejects them with a
+     * 400 the result is cached and later pages use the known-good minimal fields.
+     */
+    suspend fun mangaListPage(
+        status: String? = null,
+        limit: Int = LIST_PAGINATION_AMOUNT,
+        offset: Int = 0,
+    ): MALMangaListResponse {
+        val extendedFields = "list_status{start_date,finish_date,is_rereading,num_chapters_read,score,status,updated_at}," +
+            "node{id,title,num_chapters,mean,main_picture{medium,large},status,media_type,start_date}"
+        val basicFields = "list_status{start_date,finish_date,is_rereading,num_chapters_read,score,status}"
+
+        if (extendedMangaFieldsSupported == false) {
+            return fetchMangaListPage(status, limit, offset, basicFields) ?: MALMangaListResponse()
+        }
+        val extended = fetchMangaListPage(status, limit, offset, extendedFields)
+        extendedMangaFieldsSupported = extended != null
+        if (extended != null) {
+            return extended
+        }
+        return fetchMangaListPage(status, limit, offset, basicFields) ?: MALMangaListResponse()
+    }
+
+    private suspend fun fetchMangaListPage(
+        status: String?,
+        limit: Int,
+        offset: Int,
+        fields: String,
+    ): MALMangaListResponse? {
+        return withIOContext {
+            val urlBuilder = "$BASE_API_URL/users/@me/mangalist".toUri().buildUpon()
+                .appendQueryParameter("fields", fields)
+                .appendQueryParameter("limit", limit.toString())
+                .appendQueryParameter("nsfw", "true")
+            status?.let { urlBuilder.appendQueryParameter("status", it) }
+            if (offset > 0) {
+                urlBuilder.appendQueryParameter("offset", offset.toString())
+            }
+
+            val request = Request.Builder()
+                .url(urlBuilder.build().toString())
+                .get()
+                .build()
+            try {
+                with(json) {
+                    authClient.newCall(request)
+                        .awaitSuccess()
+                        .parseAs()
+                }
+            } catch (e: HttpException) {
+                if (e.code == 400) null else throw e
+            }
+        }
+    }
+
+    /**
+     * Direct PUT to the manga entry's my_list_status with only the provided fields.
+     */
+    suspend fun updateMangaListStatus(
+        mangaId: Int,
+        status: String? = null,
+        score: Int? = null,
+        numChaptersRead: Int? = null,
+        isReplaying: Boolean? = null,
+    ): MALListMangaItemStatus {
+        return withIOContext {
+            val formBodyBuilder = FormBody.Builder()
+            status?.let { formBodyBuilder.add("status", it) }
+            isReplaying?.let { formBodyBuilder.add("is_rereading", it.toString()) }
+            score?.let { formBodyBuilder.add("score", it.toString()) }
+            numChaptersRead?.let { formBodyBuilder.add("num_chapters_read", it.toString()) }
+
+            val request = Request.Builder()
+                .url(mangaUrl(mangaId.toLong()).toString())
+                .put(formBodyBuilder.build())
+                .build()
+            with(json) {
+                authClient.newCall(request)
+                    .awaitSuccess()
+                    .parseAs()
+            }
+        }
+    }
+
+    /** Removes the manga from the user's MAL list entirely. */
+    suspend fun deleteMangaListEntry(mangaId: Int) {
+        withIOContext {
+            authClient
+                .newCall(DELETE(mangaUrl(mangaId.toLong()).toString()))
+                .awaitSuccess()
+        }
+    }
+
+    /** Reads the user's list status for one manga, or null when not on the list. */
+    suspend fun findMangaListStatus(mangaId: Int): MALListMangaItemStatus? {
+        return try {
+            withIOContext {
+                val uri = "$BASE_API_URL/manga".toUri().buildUpon()
+                    .appendPath(mangaId.toString())
+                    .appendQueryParameter(
+                        "fields",
+                        "my_list_status{status,score,num_chapters_read,is_rereading}",
+                    )
+                    .build()
+                with(json) {
+                    authClient.newCall(GET(uri.toString()))
+                        .awaitSuccess()
+                        .parseAs<MALMangaListStatusResponse>()
+                        .myListStatus
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Reads the user's list status for one anime, or null when the anime is not
+     * on their list (or when the request fails for any reason — list status is a
+     * nice-to-have for the info page FAB, not worth failing hard for).
+     */
+    suspend fun findListStatus(animeId: Int): MALListAnimeItemStatus? {
+        return try {
+            withIOContext {
+                val uri = "$BASE_API_URL/anime".toUri().buildUpon()
+                    .appendPath(animeId.toString())
+                    .appendQueryParameter(
+                        "fields",
+                        "my_list_status{status,score,num_watched_episodes,is_rewatching}",
+                    )
+                    .build()
+                with(json) {
+                    authClient.newCall(GET(uri.toString()))
+                        .awaitSuccess()
+                        .parseAs<MALAnimeListStatusResponse>()
+                        .myListStatus
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Reads the full MAL profile (name, avatar, joined date, birthday, gender,
+     * location, etc.). Returns null when unavailable.
+     */
+    suspend fun getMyProfile(): MALUserProfile? {
+        return try {
+            withIOContext {
+                val uri = "$BASE_API_URL/users/@me".toUri().buildUpon()
+                    .appendQueryParameter(
+                        "fields",
+                        "id,name,picture,joined_at,location,gender,birthday,is_supporter",
+                    )
+                    .build()
+                with(json) {
+                    authClient.newCall(GET(uri.toString()))
+                        .awaitSuccess()
+                        .parseAs<MALUserProfile>()
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Reads the user's MAL profile picture URL, or null when unavailable
+     * (no picture set, not signed in, request failed — caller treats null
+     * as "show a generic avatar").
+     */
+    suspend fun getProfilePicture(): String? {
+        return getMyProfile()?.picture?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * Removes the anime from the user's MAL list entirely.
+     */
+    suspend fun deleteListEntry(animeId: Int) {
+        withIOContext {
+            authClient
+                .newCall(DELETE(animeUrl(animeId.toLong()).toString()))
+                .awaitSuccess()
+        }
+    }
+
+    /**
+     * Direct PUT to the entry's my_list_status with only the provided fields.
+     * Used by the MAL tab's edit UI, which operates on remote-only entries
+     * that are not necessarily bound to library items.
+     */
+    suspend fun updateListStatus(
+        animeId: Int,
+        status: String? = null,
+        score: Int? = null,
+        numWatchedEpisodes: Int? = null,
+        isRewatching: Boolean? = null,
+    ): MALListAnimeItemStatus {
+        return withIOContext {
+            val formBodyBuilder = FormBody.Builder()
+            status?.let { formBodyBuilder.add("status", it) }
+            score?.let { formBodyBuilder.add("score", it.toString()) }
+            numWatchedEpisodes?.let { formBodyBuilder.add("num_watched_episodes", it.toString()) }
+            isRewatching?.let { formBodyBuilder.add("is_rewatching", it.toString()) }
+
+            val request = Request.Builder()
+                .url(animeUrl(animeId.toLong()).toString())
+                .put(formBodyBuilder.build())
+                .build()
+            with(json) {
+                authClient.newCall(request)
+                    .awaitSuccess()
+                    .parseAs()
+            }
+        }
+    }
+
+    private suspend fun getAnimeListPage(offset: Int): MALAnimeListResponse {
+        return withIOContext {
+            val urlBuilder = "$BASE_API_URL/users/@me/animelist".toUri().buildUpon()
                 .appendQueryParameter("fields", "list_status{start_date,finish_date}")
                 .appendQueryParameter("limit", LIST_PAGINATION_AMOUNT.toString())
             if (offset > 0) {
@@ -380,7 +731,18 @@ class MyAnimeListApi(
     }
 
     companion object {
-        private const val CLIENT_ID = "686b980ff4240fccce7f6a654cea07ce"
+        /**
+         * The client id of the app.
+         *
+         * MyAnimeList requires it in the `X-MAL-CLIENT-ID` header of every API request —
+         * without it the API answers with `403 forbidden`.
+         */
+        internal const val CLIENT_ID = "686b980ff4240fccce7f6a654cea07ce"
+
+        /**
+         * The header MyAnimeList expects the client id in.
+         */
+        const val CLIENT_ID_HEADER = "X-MAL-CLIENT-ID"
 
         private const val BASE_OAUTH_URL = "https://myanimelist.net/v1/oauth2"
         private const val BASE_API_URL = "https://api.myanimelist.net/v2"

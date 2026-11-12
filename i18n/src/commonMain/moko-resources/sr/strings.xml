@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Име</string>
     <string name="categories">Категорије</string>
-    <string name="manga">Наслови колекције</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Поглавља</string>
     <string name="track">Праћење</string>
     <string name="history">Историја</string>

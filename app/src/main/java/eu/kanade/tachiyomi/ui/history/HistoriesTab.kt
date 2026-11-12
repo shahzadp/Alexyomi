@@ -12,7 +12,6 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
-import eu.kanade.domain.ui.model.NavStyle
 import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
@@ -33,13 +32,8 @@ data object HistoriesTab : Tab {
         get() {
             val isSelected = LocalTabNavigator.current.current.key == key
             val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_history_enter)
-            val index: UShort = when (currentNavigationStyle()) {
-                NavStyle.MOVE_HISTORY_TO_MORE -> 5u
-                NavStyle.MOVE_BROWSE_TO_MORE -> 3u
-                else -> 2u
-            }
             return TabOptions(
-                index = index,
+                index = 4u,
                 title = stringResource(MR.strings.history),
                 icon = rememberAnimatedVectorPainter(image, isSelected),
             )
@@ -52,7 +46,8 @@ data object HistoriesTab : Tab {
     @Composable
     override fun Content() {
         val context = LocalContext.current
-        val fromMore = currentNavigationStyle() == NavStyle.MOVE_HISTORY_TO_MORE
+        // History is pushed from the More tab (not a bottom bar entry), so always show a back affordance.
+        val fromMore = true
         // Hoisted for history tab's search bar
         val mangaHistoryScreenModel = rememberScreenModel { MangaHistoryScreenModel() }
         val mangaSearchQuery by mangaHistoryScreenModel.query.collectAsState()
@@ -77,6 +72,3 @@ data object HistoriesTab : Tab {
         }
     }
 }
-
-private const val TAB_ANIME = 0
-private const val TAB_MANGA = 1

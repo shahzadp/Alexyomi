@@ -196,7 +196,7 @@
     <string name="snack_categories_deleted">Catégories supprimées</string>
     <string name="action_undo">Annuler</string>
     <string name="categories">Catégories</string>
-    <string name="manga">Entrées de la bibliothèque</string>
+    <string name="manga">Manga</string>
     <string name="history">Historique</string>
     <string name="app_not_available">Application indisponible</string>
     <string name="update_weekly">Chaque semaine</string>

@@ -110,7 +110,6 @@ import java.util.concurrent.TimeUnit
 fun AnimeScreen(
     state: AnimeScreenModel.State.Success,
     snackbarHostState: SnackbarHostState,
-    nextUpdate: Instant?,
     isTabletUi: Boolean,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
     episodeSwipeEndAction: LibraryPreferences.EpisodeSwipeAction,
@@ -119,10 +118,10 @@ fun AnimeScreen(
     navigateUp: () -> Unit,
     onEpisodeClicked: (episode: Episode, alt: Boolean) -> Unit,
     onDownloadEpisode: ((List<EpisodeList.Item>, EpisodeDownloadAction) -> Unit)?,
-    onAddToLibraryClicked: () -> Unit,
     onWebViewClicked: (() -> Unit)?,
     onWebViewLongClicked: (() -> Unit)?,
-    onTrackingClicked: (() -> Unit)?,
+    onAddToMalClicked: (() -> Unit)?,
+    isAddingToMal: Boolean = false,
 
     // For tags menu
     onTagSearch: (String) -> Unit,
@@ -138,9 +137,6 @@ fun AnimeScreen(
     // For top action menu
     onShareClicked: (() -> Unit)?,
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
-    onEditCategoryClicked: (() -> Unit)?,
-    onEditFetchIntervalClicked: (() -> Unit)?,
-    onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
 
     // For bottom action menu
@@ -183,7 +179,6 @@ fun AnimeScreen(
         AnimeScreenSmallImpl(
             state = state,
             snackbarHostState = snackbarHostState,
-            nextUpdate = nextUpdate,
             episodeSwipeStartAction = episodeSwipeStartAction,
             episodeSwipeEndAction = episodeSwipeEndAction,
             showNextEpisodeAirTime = showNextEpisodeAirTime,
@@ -191,10 +186,10 @@ fun AnimeScreen(
             navigateUp = navigateUp,
             onEpisodeClicked = onEpisodeClicked,
             onDownloadEpisode = onDownloadEpisode,
-            onAddToLibraryClicked = onAddToLibraryClicked,
             onWebViewClicked = onWebViewClicked,
             onWebViewLongClicked = onWebViewLongClicked,
-            onTrackingClicked = onTrackingClicked,
+            onAddToMalClicked = onAddToMalClicked,
+            isAddingToMal = isAddingToMal,
             onTagSearch = onTagSearch,
             onCopyTagToClipboard = onCopyTagToClipboard,
             onFilterClicked = onFilterButtonClicked,
@@ -204,9 +199,6 @@ fun AnimeScreen(
             onCoverClicked = onCoverClicked,
             onShareClicked = onShareClicked,
             onDownloadActionClicked = onDownloadActionClicked,
-            onEditCategoryClicked = onEditCategoryClicked,
-            onEditIntervalClicked = onEditFetchIntervalClicked,
-            onMigrateClicked = onMigrateClicked,
             changeAnimeSkipIntro = changeAnimeSkipIntro,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiFillermarkClicked = onMultiFillermarkClicked,
@@ -228,7 +220,6 @@ fun AnimeScreen(
         AnimeScreenLargeImpl(
             state = state,
             snackbarHostState = snackbarHostState,
-            nextUpdate = nextUpdate,
             episodeSwipeStartAction = episodeSwipeStartAction,
             episodeSwipeEndAction = episodeSwipeEndAction,
             showNextEpisodeAirTime = showNextEpisodeAirTime,
@@ -236,10 +227,10 @@ fun AnimeScreen(
             navigateUp = navigateUp,
             onEpisodeClicked = onEpisodeClicked,
             onDownloadEpisode = onDownloadEpisode,
-            onAddToLibraryClicked = onAddToLibraryClicked,
             onWebViewClicked = onWebViewClicked,
             onWebViewLongClicked = onWebViewLongClicked,
-            onTrackingClicked = onTrackingClicked,
+            onAddToMalClicked = onAddToMalClicked,
+            isAddingToMal = isAddingToMal,
             onTagSearch = onTagSearch,
             onCopyTagToClipboard = onCopyTagToClipboard,
             onFilterButtonClicked = onFilterButtonClicked,
@@ -249,10 +240,7 @@ fun AnimeScreen(
             onCoverClicked = onCoverClicked,
             onShareClicked = onShareClicked,
             onDownloadActionClicked = onDownloadActionClicked,
-            onEditCategoryClicked = onEditCategoryClicked,
-            onEditIntervalClicked = onEditFetchIntervalClicked,
             changeAnimeSkipIntro = changeAnimeSkipIntro,
-            onMigrateClicked = onMigrateClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiFillermarkClicked = onMultiFillermarkClicked,
             onMultiMarkAsSeenClicked = onMultiMarkAsSeenClicked,
@@ -277,7 +265,6 @@ fun AnimeScreen(
 private fun AnimeScreenSmallImpl(
     state: AnimeScreenModel.State.Success,
     snackbarHostState: SnackbarHostState,
-    nextUpdate: Instant?,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
     episodeSwipeEndAction: LibraryPreferences.EpisodeSwipeAction,
     showNextEpisodeAirTime: Boolean,
@@ -285,10 +272,10 @@ private fun AnimeScreenSmallImpl(
     navigateUp: () -> Unit,
     onEpisodeClicked: (Episode, Boolean) -> Unit,
     onDownloadEpisode: ((List<EpisodeList.Item>, EpisodeDownloadAction) -> Unit)?,
-    onAddToLibraryClicked: () -> Unit,
     onWebViewClicked: (() -> Unit)?,
     onWebViewLongClicked: (() -> Unit)?,
-    onTrackingClicked: (() -> Unit)?,
+    onAddToMalClicked: (() -> Unit)?,
+    isAddingToMal: Boolean = false,
 
     // For tags menu
     onTagSearch: (String) -> Unit,
@@ -305,9 +292,6 @@ private fun AnimeScreenSmallImpl(
     // For top action menu
     onShareClicked: (() -> Unit)?,
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
-    onEditCategoryClicked: (() -> Unit)?,
-    onEditIntervalClicked: (() -> Unit)?,
-    onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
     onSettingsClicked: (() -> Unit)?,
 
@@ -396,9 +380,7 @@ private fun AnimeScreenSmallImpl(
                     onClickFilter = onFilterClicked,
                     onClickShare = onShareClicked,
                     onClickDownload = onDownloadActionClicked,
-                    onClickEditCategory = onEditCategoryClicked,
                     onClickRefresh = onRefresh,
-                    onClickMigrate = onMigrateClicked,
                     onClickSettings = onSettingsClicked,
                     changeAnimeSkipIntro = changeAnimeSkipIntro,
                     actionModeCounter = selectedEpisodeCount,
@@ -503,16 +485,11 @@ private fun AnimeScreenSmallImpl(
                         span = { GridItemSpan(maxLineSpan) },
                     ) {
                         AnimeActionRow(
-                            favorite = state.anime.favorite,
-                            trackingCount = state.trackingCount,
-                            nextUpdate = nextUpdate,
-                            isUserIntervalMode = state.anime.fetchInterval < 0,
-                            onAddToLibraryClicked = onAddToLibraryClicked,
+
                             onWebViewClicked = onWebViewClicked,
                             onWebViewLongClicked = onWebViewLongClicked,
-                            onTrackingClicked = onTrackingClicked,
-                            onEditIntervalClicked = onEditIntervalClicked,
-                            onEditCategory = onEditCategoryClicked,
+                            onAddToMalClicked = onAddToMalClicked,
+                            isAddingToMal = isAddingToMal,
                             modifier = Modifier.ignorePadding(offsetGridPaddingPx),
                         )
                     }
@@ -631,7 +608,6 @@ private fun AnimeScreenSmallImpl(
 fun AnimeScreenLargeImpl(
     state: AnimeScreenModel.State.Success,
     snackbarHostState: SnackbarHostState,
-    nextUpdate: Instant?,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
     episodeSwipeEndAction: LibraryPreferences.EpisodeSwipeAction,
     showNextEpisodeAirTime: Boolean,
@@ -639,10 +615,10 @@ fun AnimeScreenLargeImpl(
     navigateUp: () -> Unit,
     onEpisodeClicked: (Episode, Boolean) -> Unit,
     onDownloadEpisode: ((List<EpisodeList.Item>, EpisodeDownloadAction) -> Unit)?,
-    onAddToLibraryClicked: () -> Unit,
     onWebViewClicked: (() -> Unit)?,
     onWebViewLongClicked: (() -> Unit)?,
-    onTrackingClicked: (() -> Unit)?,
+    onAddToMalClicked: (() -> Unit)?,
+    isAddingToMal: Boolean = false,
 
     // For tags menu
     onTagSearch: (String) -> Unit,
@@ -659,9 +635,6 @@ fun AnimeScreenLargeImpl(
     // For top action menu
     onShareClicked: (() -> Unit)?,
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
-    onEditCategoryClicked: (() -> Unit)?,
-    onEditIntervalClicked: (() -> Unit)?,
-    onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
     onSettingsClicked: (() -> Unit)?,
 
@@ -739,9 +712,7 @@ fun AnimeScreenLargeImpl(
                     onClickFilter = onFilterButtonClicked,
                     onClickShare = onShareClicked,
                     onClickDownload = onDownloadActionClicked,
-                    onClickEditCategory = onEditCategoryClicked,
                     onClickRefresh = onRefresh,
-                    onClickMigrate = onMigrateClicked,
                     onCancelActionMode = { onAllEpisodeSelected(false) },
                     onClickSettings = onSettingsClicked,
                     changeAnimeSkipIntro = changeAnimeSkipIntro,
@@ -834,16 +805,10 @@ fun AnimeScreenLargeImpl(
                                 doSearch = onSearch,
                             )
                             AnimeActionRow(
-                                favorite = state.anime.favorite,
-                                trackingCount = state.trackingCount,
-                                nextUpdate = nextUpdate,
-                                isUserIntervalMode = state.anime.fetchInterval < 0,
-                                onAddToLibraryClicked = onAddToLibraryClicked,
                                 onWebViewClicked = onWebViewClicked,
                                 onWebViewLongClicked = onWebViewLongClicked,
-                                onTrackingClicked = onTrackingClicked,
-                                onEditIntervalClicked = onEditIntervalClicked,
-                                onEditCategory = onEditCategoryClicked,
+                                onAddToMalClicked = onAddToMalClicked,
+                                isAddingToMal = isAddingToMal,
                             )
                             ExpandableAnimeDescription(
                                 defaultExpandState = true,

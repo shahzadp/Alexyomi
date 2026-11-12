@@ -75,17 +75,6 @@ object SettingsTrackingScreen : SearchableSettings {
     override fun getTitleRes() = MR.strings.pref_category_tracking
 
     @Composable
-    override fun RowScope.AppBarAction() {
-        val uriHandler = LocalUriHandler.current
-        IconButton(onClick = { uriHandler.openUri("https://aniyomi.org/help/guides/tracking/") }) {
-            Icon(
-                imageVector = Icons.Outlined.HelpOutline,
-                contentDescription = stringResource(MR.strings.tracking_guide),
-            )
-        }
-    }
-
-    @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
         val trackPreferences = remember { Injekt.get<TrackPreferences>() }

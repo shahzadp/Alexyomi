@@ -29,7 +29,6 @@ fun MangaHistoryScreen(
     snackbarHostState: SnackbarHostState,
     onClickCover: (mangaId: Long) -> Unit,
     onClickResume: (mangaId: Long, chapterId: Long) -> Unit,
-    onClickFavorite: (mangaId: Long) -> Unit,
     onDialogChange: (MangaHistoryScreenModel.Dialog?) -> Unit,
     searchQuery: String? = null,
 ) {
@@ -56,7 +55,6 @@ fun MangaHistoryScreen(
                     onClickCover = { history -> onClickCover(history.mangaId) },
                     onClickResume = { history -> onClickResume(history.mangaId, history.chapterId) },
                     onClickDelete = { item -> onDialogChange(MangaHistoryScreenModel.Dialog.Delete(item)) },
-                    onClickFavorite = { history -> onClickFavorite(history.mangaId) },
                 )
             }
         }
@@ -70,7 +68,6 @@ private fun MangaHistoryScreenContent(
     onClickCover: (MangaHistoryWithRelations) -> Unit,
     onClickResume: (MangaHistoryWithRelations) -> Unit,
     onClickDelete: (MangaHistoryWithRelations) -> Unit,
-    onClickFavorite: (MangaHistoryWithRelations) -> Unit,
 ) {
     FastScrollLazyColumn(
         contentPadding = contentPadding,
@@ -100,7 +97,6 @@ private fun MangaHistoryScreenContent(
                         onClickCover = { onClickCover(value) },
                         onClickResume = { onClickResume(value) },
                         onClickDelete = { onClickDelete(value) },
-                        onClickFavorite = { onClickFavorite(value) },
                     )
                 }
             }
@@ -127,7 +123,6 @@ internal fun HistoryScreenPreviews(
             onClickCover = {},
             onClickResume = { _, _ -> run {} },
             onDialogChange = {},
-            onClickFavorite = {},
         )
     }
 }

@@ -58,7 +58,7 @@ fun EpisodeSettingsDialog(
         )
     }
 
-    val downloadedOnly = remember { Injekt.get<BasePreferences>().downloadedOnly().get() }
+
 
     TabbedDialog(
         onDismissRequest = onDismissRequest,
@@ -86,8 +86,7 @@ fun EpisodeSettingsDialog(
                 0 -> {
                     FilterPage(
                         downloadFilter = anime?.downloadedFilter ?: TriState.DISABLED,
-                        onDownloadFilterChanged = onDownloadFilterChanged
-                            .takeUnless { downloadedOnly },
+                        onDownloadFilterChanged = onDownloadFilterChanged,
                         unseenFilter = anime?.unseenFilter ?: TriState.DISABLED,
                         onUnseenFilterChanged = onUnseenFilterChanged,
                         bookmarkedFilter = anime?.bookmarkedFilter ?: TriState.DISABLED,

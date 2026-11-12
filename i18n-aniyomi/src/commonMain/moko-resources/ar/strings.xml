@@ -233,7 +233,7 @@
     <string name="manga_categories">فئات المانغا</string>
     <string name="general_categories">فئات</string>
     <string name="anime_categories">فئات الأنمي</string>
-    <string name="entries">مداخل المكتبة</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">الفصول والحلقات</string>
     <string name="episodes">حلقات</string>
     <string name="backup_settings_warning">تحذير: ستعمل إعدادات النسخ الاحتياطي على تخزين كلمات مرور المسار أيضًا، لا تشارك ملف النسخ الاحتياطي هذا!</string>

@@ -26,41 +26,30 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifAnimeSourcesLoaded
-import eu.kanade.presentation.browse.RemoveEntryDialog
 import eu.kanade.presentation.browse.anime.BrowseAnimeSourceContent
 import eu.kanade.presentation.browse.anime.MissingSourceScreen
 import eu.kanade.presentation.browse.anime.components.BrowseAnimeSourceToolbar
-import eu.kanade.presentation.category.components.ChangeCategoryDialog
-import eu.kanade.presentation.entries.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.core.common.Constants
 import eu.kanade.tachiyomi.ui.browse.anime.extension.details.AnimeSourcePreferencesScreen
-import eu.kanade.tachiyomi.ui.browse.anime.migration.anime.season.MigrateSeasonSelectScreen
-import eu.kanade.tachiyomi.ui.browse.anime.migration.search.MigrateAnimeDialog
-import eu.kanade.tachiyomi.ui.browse.anime.migration.search.MigrateAnimeDialogScreenModel
 import eu.kanade.tachiyomi.ui.browse.anime.source.browse.BrowseAnimeSourceScreenModel.Listing
-import eu.kanade.tachiyomi.ui.category.CategoriesTab
 import eu.kanade.tachiyomi.ui.entries.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import mihon.presentation.core.util.collectAsLazyPagingItems
-import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.source.anime.model.StubAnimeSource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -106,12 +95,8 @@ data class BrowseAnimeSourceScreen(
             return
         }
 
-        val scope = rememberCoroutineScope()
-        val haptic = LocalHapticFeedback.current
         val uriHandler = LocalUriHandler.current
         val snackbarHostState = remember { SnackbarHostState() }
-
-        val onHelpClick = { uriHandler.openUri(LocalAnimeSource.HELP_URL) }
         val onWebViewClick = f@{
             val source = screenModel.source as? AnimeHttpSource ?: return@f
             navigator.push(
@@ -143,7 +128,6 @@ data class BrowseAnimeSourceScreen(
                         onDisplayModeChange = { screenModel.displayMode = it },
                         navigateUp = navigateUp,
                         onWebViewClick = onWebViewClick,
-                        onHelpClick = onHelpClick,
                         onSettingsClick = { navigator.push(AnimeSourcePreferencesScreen(sourceId)) },
                         onSearch = screenModel::search,
                     )
@@ -226,27 +210,7 @@ data class BrowseAnimeSourceScreen(
                 snackbarHostState = snackbarHostState,
                 contentPadding = paddingValues,
                 onWebViewClick = onWebViewClick,
-                onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
-                onLocalAnimeSourceHelpClick = onHelpClick,
                 onAnimeClick = { navigator.push((AnimeScreen(it.id, true))) },
-                onAnimeLongClick = { anime ->
-                    scope.launchIO {
-                        val duplicateAnime = screenModel.getDuplicateAnimelibAnime(anime)
-                        when {
-                            anime.favorite -> screenModel.setDialog(
-                                BrowseAnimeSourceScreenModel.Dialog.RemoveAnime(anime),
-                            )
-                            duplicateAnime != null -> screenModel.setDialog(
-                                BrowseAnimeSourceScreenModel.Dialog.AddDuplicateAnime(
-                                    anime,
-                                    duplicateAnime,
-                                ),
-                            )
-                            else -> screenModel.addFavorite(anime)
-                        }
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    }
-                },
             )
         }
 
@@ -259,52 +223,6 @@ data class BrowseAnimeSourceScreen(
                     onReset = screenModel::resetFilters,
                     onFilter = { screenModel.search(filters = state.filters) },
                     onUpdate = screenModel::setFilters,
-                )
-            }
-            is BrowseAnimeSourceScreenModel.Dialog.AddDuplicateAnime -> {
-                DuplicateAnimeDialog(
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = { screenModel.addFavorite(dialog.anime) },
-                    onOpenAnime = { navigator.push(AnimeScreen(dialog.duplicate.id)) },
-                    onMigrate = {
-                        screenModel.setDialog(
-                            BrowseAnimeSourceScreenModel.Dialog.Migrate(dialog.anime, dialog.duplicate),
-                        )
-                    },
-                )
-            }
-
-            is BrowseAnimeSourceScreenModel.Dialog.Migrate -> {
-                MigrateAnimeDialog(
-                    oldAnime = dialog.oldAnime,
-                    newAnime = dialog.newAnime,
-                    screenModel = MigrateAnimeDialogScreenModel(),
-                    onDismissRequest = onDismissRequest,
-                    onClickTitle = { navigator.push(AnimeScreen(dialog.oldAnime.id)) },
-                    onClickSeasons = { navigator.push(MigrateSeasonSelectScreen(dialog.oldAnime, dialog.newAnime)) },
-                    onPopScreen = {
-                        onDismissRequest()
-                    },
-                )
-            }
-            is BrowseAnimeSourceScreenModel.Dialog.RemoveAnime -> {
-                RemoveEntryDialog(
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
-                        screenModel.changeAnimeFavorite(dialog.anime)
-                    },
-                    entryToRemove = dialog.anime.title,
-                )
-            }
-            is BrowseAnimeSourceScreenModel.Dialog.ChangeAnimeCategory -> {
-                ChangeCategoryDialog(
-                    initialSelection = dialog.initialSelection,
-                    onDismissRequest = onDismissRequest,
-                    onEditCategories = { navigator.push(CategoriesTab) },
-                    onConfirm = { include, _ ->
-                        screenModel.changeAnimeFavorite(dialog.anime)
-                        screenModel.moveAnimeToCategories(dialog.anime, include)
-                    },
                 )
             }
             else -> {}

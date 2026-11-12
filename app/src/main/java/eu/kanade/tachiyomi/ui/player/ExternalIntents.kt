@@ -42,6 +42,7 @@ import tachiyomi.domain.entries.anime.interactor.GetAnime
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.history.anime.interactor.UpsertAnimeHistory
 import tachiyomi.domain.history.anime.model.AnimeHistoryUpdate
+import tachiyomi.domain.items.episode.interactor.GetEpisode
 import tachiyomi.domain.items.episode.interactor.GetEpisodesByAnimeId
 import tachiyomi.domain.items.episode.interactor.UpdateEpisode
 import tachiyomi.domain.items.episode.model.Episode
@@ -120,7 +121,7 @@ class ExternalIntents {
     suspend fun initAnime(animeId: Long, episodeId: Long): Boolean {
         anime = getAnime.await(animeId) ?: return false
         source = sourceManager.get(anime.source) ?: return false
-        episode = getEpisodesByAnimeId.await(anime.id).find { it.id == episodeId } ?: return false
+        episode = getEpisode.await(episodeId) ?: return false
 
         this.animeId = animeId
         this.episodeId = episodeId
@@ -251,6 +252,16 @@ class ExternalIntents {
             setDataAndType(uri, "video/*")
             addExtrasAndFlags(true, this)
             addVideoHeaders(true, video, this)
+
+            if (pkgName == VLC_PLAYER) {
+                // VLC picks the audio and the subtitle track on its own, the user configures
+                // that inside VLC and the app must not interfere with it. Only the resume
+                // position is handed over (VLC expects milliseconds).
+                val position = getLastSecondSeen()
+                putExtra("position", (position * 1000).toInt())
+                putExtra("from_start", position <= 0L)
+                return@apply
+            }
 
             // Add support for Subtitles to external players
 
@@ -423,6 +434,7 @@ class ExternalIntents {
     private val updateEpisode: UpdateEpisode = Injekt.get()
     private val getAnime: GetAnime = Injekt.get()
     private val sourceManager: AnimeSourceManager = Injekt.get()
+    private val getEpisode: GetEpisode = Injekt.get()
     private val getEpisodesByAnimeId: GetEpisodesByAnimeId = Injekt.get()
     private val getTracks: GetAnimeTracks = Injekt.get()
     private val insertTrack: InsertAnimeTrack = Injekt.get()
@@ -608,3 +620,21 @@ const val JUST_PLAYER = "com.brouken.player"
 const val NEXT_PLAYER = "dev.anilbeesetti.nextplayer"
 const val X_PLAYER = "video.player.videoplayer"
 const val WEB_VIDEO_CASTER = "com.instantbits.cast.webvideo"
+
+/**
+ * List of supported external players and their packages
+ */
+val EXTERNAL_PLAYERS = listOf(
+    MPV_PLAYER,
+    MX_PLAYER,
+    MX_PLAYER_FREE,
+    MX_PLAYER_PRO,
+    VLC_PLAYER,
+    MPV_KT,
+    MPV_KT_PREVIEW,
+    MPV_REMOTE,
+    JUST_PLAYER,
+    NEXT_PLAYER,
+    X_PLAYER,
+    WEB_VIDEO_CASTER,
+)

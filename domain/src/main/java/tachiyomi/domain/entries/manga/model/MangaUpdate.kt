@@ -5,7 +5,6 @@ import eu.kanade.tachiyomi.source.model.UpdateStrategy
 data class MangaUpdate(
     val id: Long,
     val source: Long? = null,
-    val favorite: Boolean? = null,
     val lastUpdate: Long? = null,
     val nextUpdate: Long? = null,
     val fetchInterval: Int? = null,
@@ -30,7 +29,6 @@ fun Manga.toMangaUpdate(): MangaUpdate {
     return MangaUpdate(
         id = id,
         source = source,
-        favorite = favorite,
         lastUpdate = lastUpdate,
         nextUpdate = nextUpdate,
         fetchInterval = fetchInterval,

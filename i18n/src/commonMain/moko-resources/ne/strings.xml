@@ -86,7 +86,7 @@
     <string name="history">इतिहास</string>
     <string name="track">ट्र्याकिङ</string>
     <string name="chapters">अध्याय</string>
-    <string name="manga">पुस्तकालयका इन्ट्रीहरू</string>
+    <string name="manga">Manga</string>
     <string name="categories">वर्गहरू</string>
     <string name="information_empty_category">तपाईंसँग कुनै वर्गहरू छैन। वर्ग बनाएर पुस्तकालय व्यवस्थित गर्न प्लस बटन थिच्नुहोस्।</string>
     <string name="information_empty_library">तपाईंको पुस्तकालय खाली छ</string>

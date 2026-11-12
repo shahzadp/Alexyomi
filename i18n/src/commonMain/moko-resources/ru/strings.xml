@@ -205,7 +205,7 @@
     <string name="download_notifier_download_paused">Загрузки приостановлены</string>
     <string name="history">История</string>
     <string name="local_source">Источник на устройстве</string>
-    <string name="manga">Серии библиотеки</string>
+    <string name="manga">Manga</string>
     <string name="no_more_results">Больше нет результатов</string>
     <string name="pref_backup_interval">Частота автоматических резервных копий</string>
     <string name="pref_create_backup">Создать резервную копию</string>

@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Nama</string>
     <string name="categories">Kategori</string>
-    <string name="manga">Entri pustaka</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Bab-bab</string>
     <string name="track">Penjejakan</string>
     <string name="history">Sejarah</string>

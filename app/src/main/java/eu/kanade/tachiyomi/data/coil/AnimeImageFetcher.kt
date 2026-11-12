@@ -48,7 +48,6 @@ import java.io.IOException
  */
 class AnimeImageFetcher(
     private val url: String?,
-    private val isLibraryAnime: Boolean,
     private val options: Options,
     private val coverFileLazy: Lazy<File?>,
     private val customCoverFileLazy: Lazy<File>,
@@ -105,11 +104,7 @@ class AnimeImageFetcher(
 
     private suspend fun httpLoader(): FetchResult {
         // Only cache separately if it's a library item
-        val libraryCoverCacheFile = if (isLibraryAnime) {
-            coverFileLazy.value ?: error("No cover specified")
-        } else {
-            null
-        }
+        val libraryCoverCacheFile: File? = null
         if (libraryCoverCacheFile?.exists() == true && options.diskCachePolicy.readEnabled) {
             return fileLoader(libraryCoverCacheFile)
         }
@@ -322,7 +317,6 @@ class AnimeImageFetcher(
 
             return AnimeImageFetcher(
                 url = url,
-                isLibraryAnime = data.favorite,
                 options = options,
                 coverFileLazy = coverCacheLazy,
                 customCoverFileLazy = customCoverCacheLazy,
@@ -344,7 +338,6 @@ class AnimeImageFetcher(
         override fun create(data: AnimeCover, options: Options, imageLoader: ImageLoader): Fetcher {
             return AnimeImageFetcher(
                 url = data.url,
-                isLibraryAnime = data.isAnimeFavorite,
                 options = options,
                 coverFileLazy = lazy { coverCache.getCoverFile(data.url) },
                 customCoverFileLazy = lazy { coverCache.getCustomCoverFile(data.animeId) },

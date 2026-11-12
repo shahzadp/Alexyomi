@@ -54,7 +54,7 @@
     <string name="manga_categories">دسته بندی مانگا ها</string>
     <string name="general_categories">دسته بندی ها</string>
     <string name="anime_categories">دسته بندی انیمه ها</string>
-    <string name="entries">ورودی‌های کتابخانه</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">چپترها و قسمت‌ها</string>
     <string name="episodes">قسمت‌ها</string>
     <string name="backup_settings_warning">اخطار: فایل بکاپ تنظیمات شامل رمز عبور اکانت‌های پیگیر نیز می‌باشد، فایل بکاپ را انتشار ندهید!</string>

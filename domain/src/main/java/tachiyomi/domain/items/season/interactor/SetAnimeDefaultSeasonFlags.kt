@@ -2,15 +2,15 @@ package tachiyomi.domain.items.season.interactor
 
 import aniyomi.domain.anime.SeasonDisplayMode
 import tachiyomi.core.common.util.lang.withNonCancellableContext
-import tachiyomi.domain.entries.anime.interactor.GetAnimeFavorites
 import tachiyomi.domain.entries.anime.interactor.SetAnimeSeasonFlags
 import tachiyomi.domain.entries.anime.model.Anime
+import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 
 class SetAnimeDefaultSeasonFlags(
     private val libraryPreferences: LibraryPreferences,
     private val setAnimeSeasonFlags: SetAnimeSeasonFlags,
-    private val getAnimeFavorites: GetAnimeFavorites,
+    private val animeRepository: AnimeRepository,
 ) {
     suspend fun await(anime: Anime) {
         withNonCancellableContext {
@@ -40,7 +40,7 @@ class SetAnimeDefaultSeasonFlags(
 
     suspend fun awaitAll() {
         withNonCancellableContext {
-            getAnimeFavorites.await().forEach { await(it) }
+            animeRepository.getAllAnimes().forEach { await(it) }
         }
     }
 }

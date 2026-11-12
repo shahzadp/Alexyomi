@@ -38,11 +38,17 @@ import eu.kanade.tachiyomi.data.coil.MangaCoverKeyer
 import eu.kanade.tachiyomi.data.coil.MangaKeyer
 import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
 import eu.kanade.tachiyomi.data.notification.Notifications
+import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.di.AppModule
 import eu.kanade.tachiyomi.di.PreferenceModule
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
+import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
+import eu.kanade.tachiyomi.ui.mal.MalListStore
+import eu.kanade.tachiyomi.ui.mal.MalProgressSync
+import eu.kanade.tachiyomi.util.applyDubPreferenceToAnimeSources
+import eu.kanade.tachiyomi.util.storage.LegacyStorageMigration
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.GLUtil
 import eu.kanade.tachiyomi.util.system.WebViewUtil
@@ -50,8 +56,11 @@ import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.notify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import logcat.AndroidLogcatLogger
 import logcat.LogPriority
 import logcat.LogcatLogger
@@ -63,13 +72,13 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.source.anime.service.AnimeSourceManager
 import tachiyomi.i18n.MR
-import tachiyomi.presentation.widget.entries.anime.AnimeWidgetManager
-import tachiyomi.presentation.widget.entries.manga.MangaWidgetManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.security.Security
+import kotlin.time.Duration.Companion.seconds
 
 class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
 
@@ -103,11 +112,35 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         Injekt.importModule(SYDomainModule())
         // SY <--
 
+        // Move the storage folder of the old app name over to the new one
+        LegacyStorageMigration.migrateIfNeeded(this)
+
         setupNotificationChannels()
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
 
         val scope = ProcessLifecycleOwner.get().lifecycleScope
+
+        // Anime extensions default to "Sub" audio; flip those preferences to "Dub" once per source
+        scope.launch {
+            Injekt.get<AnimeSourceManager>().sources.collectLatest {
+                delay(1.seconds)
+                applyDubPreferenceToAnimeSources(applicationContext)
+            }
+        }
+
+        // Tick the episodes that were watched on MyAnimeList, so they don't have to be marked
+        // a second time. Uses the cached list, so no network is needed here.
+        scope.launch {
+            delay(3.seconds)
+            if (!Injekt.get<TrackerManager>().myAnimeList.isLoggedIn) return@launch
+            MalListStore.read(MalListScreenModel.MediaType.ANIME)?.let {
+                MalProgressSync.applyListProgress(it)
+            }
+            MalListStore.read(MalListScreenModel.MediaType.MANGA)?.let {
+                MalProgressSync.applyMangaListProgress(it)
+            }
+        }
 
         // Show notification to disable Incognito Mode when it's enabled
         basePreferences.incognitoMode().changes()
@@ -147,15 +180,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             .launchIn(scope)
 
         setAppCompatDelegateThemeMode(Injekt.get<UiPreferences>().themeMode().get())
-
-        // Updates widget update
-        with(MangaWidgetManager(Injekt.get(), Injekt.get())) {
-            init(ProcessLifecycleOwner.get().lifecycleScope)
-        }
-
-        with(AnimeWidgetManager(Injekt.get(), Injekt.get())) {
-            init(ProcessLifecycleOwner.get().lifecycleScope)
-        }
 
         if (!LogcatLogger.isInstalled && networkPreferences.verboseLogging().get()) {
             LogcatLogger.install(AndroidLogcatLogger(LogPriority.VERBOSE))

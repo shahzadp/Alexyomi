@@ -214,7 +214,7 @@
     <string name="manga_categories">Categorías de los mangas</string>
     <string name="general_categories">Categorías</string>
     <string name="anime_categories">Categorías de Anime</string>
-    <string name="entries">Entradas de la biblioteca</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Capítulos y episodios</string>
     <string name="episodes">Episodios</string>
     <string name="backup_settings_warning">Advertencia: La copia de seguridad de la configuración también almacenará tus contraseñas, ¡no compartas este archivo de la copia de seguridad!</string>

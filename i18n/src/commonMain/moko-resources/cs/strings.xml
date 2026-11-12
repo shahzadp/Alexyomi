@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="categories">Kategorie</string>
-    <string name="manga">Záznamy v knihovně</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Kapitoly</string>
     <string name="history">Historie</string>
     <string name="label_settings">Nastavení</string>

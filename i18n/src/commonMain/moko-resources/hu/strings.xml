@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Név</string>
     <string name="categories">Kategóriák</string>
-    <string name="manga">Könyvtári elemek</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Fejezetek</string>
     <string name="track">Nyilvántartás</string>
     <string name="history">Előzmények</string>

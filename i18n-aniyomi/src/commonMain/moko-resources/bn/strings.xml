@@ -6,7 +6,7 @@
     <string name="manga_categories">বিভাগসমূহ</string>
     <string name="general_categories">ক্যাটাগরি</string>
     <string name="anime_categories">এনিমে বিভাগ</string>
-    <string name="entries">লাইব্রেরি এন্ট্রি</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">অধ্যায় এবং পর্ব</string>
     <string name="episodes">পর্বগুলি</string>
     <string name="backup_settings_warning">সতর্কতা: ব্যাক আপ সেটিংস আপনার ট্র্যাক পাসওয়ার্ডগুলিও সংরক্ষণ করবে, এই ব্যাকআপ ফাইলটি শেয়ার করবেন না!</string>

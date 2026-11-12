@@ -7,8 +7,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
-import aniyomi.core.common.torrent.TorrentPreferences
-import aniyomi.core.common.torrent.TorrentServerUtils
 import aniyomi.domain.anime.SeasonAnime
 import aniyomi.domain.anime.SeasonDisplayMode
 import cafe.adriel.voyager.core.model.StateScreenModel
@@ -38,18 +36,19 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadCache
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadManager
 import eu.kanade.tachiyomi.data.download.anime.model.AnimeDownload
-import eu.kanade.tachiyomi.data.torrent.service.TorrentServerService
 import eu.kanade.tachiyomi.data.track.EnhancedAnimeTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.source.anime.isSourceForTorrents
 import eu.kanade.tachiyomi.ui.entries.anime.track.AnimeTrackItem
+import eu.kanade.tachiyomi.ui.mal.MalEntryIds
+import eu.kanade.tachiyomi.ui.mal.MalEntryResolver
+import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
+import eu.kanade.tachiyomi.ui.mal.MalListStore
+import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.util.AniChartApi
 import eu.kanade.tachiyomi.util.episode.getNextUnseen
-import eu.kanade.tachiyomi.util.removeCovers
 import eu.kanade.tachiyomi.util.system.toast
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -69,19 +68,13 @@ import logcat.LogPriority
 import mihon.domain.items.episode.interactor.FilterEpisodesForDownload
 import mihon.domain.source.interactor.UpdateAnimeFromRemote
 import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
-import tachiyomi.core.common.preference.mapAsCheckboxState
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.domain.category.anime.interactor.GetAnimeCategories
-import tachiyomi.domain.category.anime.interactor.SetAnimeCategories
-import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.entries.anime.interactor.GetAnimeWithEpisodesAndSeasons
-import tachiyomi.domain.entries.anime.interactor.GetDuplicateLibraryAnime
 import tachiyomi.domain.entries.anime.interactor.GetRelatedAnime
 import tachiyomi.domain.entries.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.entries.anime.interactor.SetAnimeSeasonFlags
@@ -104,6 +97,7 @@ import tachiyomi.domain.items.season.service.seasonSortAlphabetically
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.source.anime.service.AnimeSourceManager
 import tachiyomi.domain.track.anime.interactor.GetAnimeTracks
+import tachiyomi.domain.track.anime.model.AnimeTrack
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.source.local.entries.anime.isLocal
@@ -122,7 +116,6 @@ class AnimeScreenModel(
     private val trackPreferences: TrackPreferences = Injekt.get(),
     internal val playerPreferences: PlayerPreferences = Injekt.get(),
     internal val gesturePreferences: GesturePreferences = Injekt.get(),
-    private val torrentPreferences: TorrentPreferences = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val trackerManager: TrackerManager = Injekt.get(),
     private val trackEpisode: TrackEpisode = Injekt.get(),
@@ -130,7 +123,6 @@ class AnimeScreenModel(
     private val downloadManager: AnimeDownloadManager = Injekt.get(),
     private val downloadCache: AnimeDownloadCache = Injekt.get(),
     private val getAnimeAndEpisodesAndSeasons: GetAnimeWithEpisodesAndSeasons = Injekt.get(),
-    private val getDuplicateLibraryAnime: GetDuplicateLibraryAnime = Injekt.get(),
     private val setAnimeEpisodeFlags: SetAnimeEpisodeFlags = Injekt.get(),
     private val setAnimeDefaultEpisodeFlags: SetAnimeDefaultEpisodeFlags = Injekt.get(),
     private val setAnimeSeasonFlags: SetAnimeSeasonFlags = Injekt.get(),
@@ -140,18 +132,20 @@ class AnimeScreenModel(
     private val setSeenStatus: SetSeenStatus = Injekt.get(),
     private val updateEpisode: UpdateEpisode = Injekt.get(),
     private val updateAnime: UpdateAnime = Injekt.get(),
-    private val getCategories: GetAnimeCategories = Injekt.get(),
     private val getTracks: GetAnimeTracks = Injekt.get(),
     private val addTracks: AddAnimeTracks = Injekt.get(),
-    private val setAnimeCategories: SetAnimeCategories = Injekt.get(),
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val getEpisodesByAnimeId: GetEpisodesByAnimeId = Injekt.get(),
     private val filterEpisodesForDownload: FilterEpisodesForDownload = Injekt.get(),
     private val updateAnimeFromRemote: UpdateAnimeFromRemote = Injekt.get(),
-    private val torrentServerUtils: TorrentServerUtils = Injekt.get(),
     internal val setAnimeViewerFlags: SetAnimeViewerFlags = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateScreenModel<AnimeScreenModel.State>(State.Loading) {
+
+    private var cachedMalEntryIds: MalEntryIds? = null
+
+    /** The link with MyAnimeList is only looked up once per screen. */
+    private var malLinkAttempted = false
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -161,9 +155,6 @@ class AnimeScreenModel(
 
     val source: AnimeSource?
         get() = successState?.source
-
-    private val isFavorited: Boolean
-        get() = anime?.favorite ?: false
 
     private val processedEpisodes: List<EpisodeList.Item>?
         get() = successState?.processedEpisodes
@@ -178,16 +169,8 @@ class AnimeScreenModel(
 
     val relatedAnimeDisplayMode = sourcePreferences.sourceDisplayMode().get()
 
-    val isUpdateIntervalEnabled =
-        LibraryPreferences.ENTRY_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateItemRestrictions().get()
-
     private val selectedPositions: Array<Int> = arrayOf(-1, -1) // first and last selected index in list
     private val selectedEpisodeIds: HashSet<Long> = HashSet()
-
-    internal var isFromChangeCategory: Boolean = false
-
-    internal val autoOpenTrack: Boolean
-        get() = successState?.hasLoggedInTrackers == true && trackPreferences.trackOnAddingToLibrary().get()
 
     /**
      * Helper function to update the UI state only if it's currently in success state
@@ -222,6 +205,19 @@ class AnimeScreenModel(
 
         observeDownloads()
 
+        // Keep the watched episodes in sync with MyAnimeList. This has to run when the
+        // episodes are there, otherwise there is nothing to tick.
+        screenModelScope.launchIO {
+            getAnimeAndEpisodesAndSeasons.subscribe(animeId)
+                .distinctUntilChanged()
+                .flowWithLifecycle(lifecycle)
+                .collectLatest { (anime, episodes, _) ->
+                    if (episodes.isNotEmpty()) {
+                        syncMalProgress(anime)
+                    }
+                }
+        }
+
         screenModelScope.launchIO {
             val anime = getAnimeAndEpisodesAndSeasons.awaitAnime(animeId)
             val source = sourceManager.getOrStub(anime.source)
@@ -240,7 +236,7 @@ class AnimeScreenModel(
                     .toAnimeSeasonItems()
             }
 
-            if (!anime.favorite) {
+            if (!anime.initialized) {
                 setAnimeDefaultEpisodeFlags.await(anime)
                 setAnimeDefaultSeasonFlags.await(anime)
             }
@@ -303,9 +299,6 @@ class AnimeScreenModel(
         fetchSeasons: Boolean,
     ) {
         val state = successState ?: return
-
-        startTorrentServer(state.source)
-
         if (fetchDetails) {
             syncRelatedAnime(forceRefresh = true)
         }
@@ -367,130 +360,6 @@ class AnimeScreenModel(
 
     // Anime info - start
 
-    fun toggleFavorite() {
-        toggleFavorite(
-            onRemoved = {
-                screenModelScope.launch {
-                    if (!hasDownloads()) return@launch
-                    val result = snackbarHostState.showSnackbar(
-                        message = context.stringResource(AYMR.strings.delete_downloads_for_anime),
-                        actionLabel = context.stringResource(MR.strings.action_delete),
-                        withDismissAction = true,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        deleteDownloads()
-                    }
-                }
-            },
-        )
-    }
-
-    /**
-     * Update favorite status of anime, (removes / adds) anime (to / from) library.
-     */
-    fun toggleFavorite(
-        onRemoved: () -> Unit,
-        checkDuplicate: Boolean = true,
-    ) {
-        val state = successState ?: return
-        screenModelScope.launchIO {
-            val anime = state.anime
-
-            if (isFavorited) {
-                // Remove from library
-                if (updateAnime.awaitUpdateFavorite(anime.id, false)) {
-                    // Remove covers and update last modified in db
-                    if (anime.removeCovers() != anime) {
-                        updateAnime.awaitUpdateCoverLastModified(anime.id)
-                    }
-                    withUIContext { onRemoved() }
-                }
-            } else {
-                // Add to library
-                // First, check if duplicate exists if callback is provided
-                if (checkDuplicate) {
-                    val duplicate = getDuplicateLibraryAnime.await(anime).getOrNull(0)
-                    if (duplicate != null) {
-                        updateSuccessState {
-                            it.copy(
-                                dialog = Dialog.DuplicateAnime(anime, duplicate),
-                            )
-                        }
-                        return@launchIO
-                    }
-                }
-
-                // Now check if user previously set categories, when available
-                val categories = getCategories()
-                val defaultCategoryId = libraryPreferences.defaultAnimeCategory().get().toLong()
-                val defaultCategory = categories.find { it.id == defaultCategoryId }
-                when {
-                    // Default category set
-                    defaultCategory != null -> {
-                        val result = updateAnime.awaitUpdateFavorite(anime.id, true)
-                        if (!result) return@launchIO
-                        moveAnimeToCategory(defaultCategory)
-                    }
-
-                    // Automatic 'Default' or no categories
-                    defaultCategoryId == 0L || categories.isEmpty() -> {
-                        val result = updateAnime.awaitUpdateFavorite(anime.id, true)
-                        if (!result) return@launchIO
-                        moveAnimeToCategory(null)
-                    }
-
-                    // Choose a category
-                    else -> {
-                        isFromChangeCategory = true
-                        showChangeCategoryDialog()
-                    }
-                }
-
-                // Finally match with enhanced tracking when available
-                addTracks.bindEnhancedTrackers(anime, state.source)
-                if (autoOpenTrack) {
-                    showTrackDialog()
-                }
-            }
-        }
-    }
-
-    fun showChangeCategoryDialog() {
-        val anime = successState?.anime ?: return
-        screenModelScope.launch {
-            val categories = getCategories()
-            val selection = getAnimeCategoryIds(anime)
-            updateSuccessState { successState ->
-                successState.copy(
-                    dialog = Dialog.ChangeCategory(
-                        anime = anime,
-                        initialSelection = categories.mapAsCheckboxState { it.id in selection }.toImmutableList(),
-                    ),
-                )
-            }
-        }
-    }
-
-    fun showSetAnimeFetchIntervalDialog() {
-        val anime = successState?.anime ?: return
-        updateSuccessState {
-            it.copy(dialog = Dialog.SetAnimeFetchInterval(anime))
-        }
-    }
-
-    fun setFetchInterval(anime: Anime, interval: Int) {
-        screenModelScope.launchIO {
-            if (
-                updateAnime.awaitUpdateFetchInterval(
-                    // Custom intervals are negative
-                    anime.copy(fetchInterval = -interval),
-                )
-            ) {
-                val updatedAnime = animeRepository.getAnimeById(anime.id)
-                updateSuccessState { it.copy(anime = updatedAnime) }
-            }
-        }
-    }
 
     /**
      * Returns true if the anime has any downloads.
@@ -508,59 +377,6 @@ class AnimeScreenModel(
         downloadManager.deleteAnime(state.anime, state.source)
     }
 
-    /**
-     * Get user categories.
-     *
-     * @return List of categories, not including the default category
-     */
-    suspend fun getCategories(): List<Category> {
-        return getCategories.await().filterNot { it.isSystemCategory }
-    }
-
-    /**
-     * Gets the category id's the anime is in, if the anime is not in a category, returns the default id.
-     *
-     * @param anime the anime to get categories from.
-     * @return Array of category ids the anime is in, if none returns default id
-     */
-    private suspend fun getAnimeCategoryIds(anime: Anime): List<Long> {
-        return getCategories.await(anime.id)
-            .map { it.id }
-    }
-
-    fun moveAnimeToCategoriesAndAddToLibrary(anime: Anime, categories: List<Long>) {
-        moveAnimeToCategory(categories)
-        if (anime.favorite) return
-
-        screenModelScope.launchIO {
-            updateAnime.awaitUpdateFavorite(anime.id, true)
-        }
-    }
-
-    /**
-     * Move the given anime to categories.
-     *
-     * @param categories the selected categories.
-     */
-    private fun moveAnimeToCategories(categories: List<Category>) {
-        val categoryIds = categories.map { it.id }
-        moveAnimeToCategory(categoryIds)
-    }
-
-    private fun moveAnimeToCategory(categoryIds: List<Long>) {
-        screenModelScope.launchIO {
-            setAnimeCategories.await(animeId, categoryIds)
-        }
-    }
-
-    /**
-     * Move the given anime to the category.
-     *
-     * @param category the selected category, or null for default category.
-     */
-    private fun moveAnimeToCategory(category: Category?) {
-        moveAnimeToCategories(listOfNotNull(category))
-    }
 
     // Anime info - end
 
@@ -652,17 +468,6 @@ class AnimeScreenModel(
         }
     }
 
-    fun isTorrentEnabled(): Boolean {
-        return torrentPreferences.torrServerEnable().get()
-    }
-
-    private suspend fun startTorrentServer(source: AnimeSource?) {
-        if (isTorrentEnabled() && source.isSourceForTorrents()) {
-            TorrentServerService.start()
-            TorrentServerService.wait(10)
-            torrentServerUtils.setTrackersList()
-        }
-    }
 
     /**
      * Fetch episodes from all seasons of an anime.
@@ -786,19 +591,6 @@ class AnimeScreenModel(
                 downloadManager.startDownloadNow(episodeId)
             } else {
                 downloadEpisodes(episodes, false, video)
-            }
-            if (!isFavorited && !successState.hasPromptedToAddBefore) {
-                updateSuccessState { state ->
-                    state.copy(hasPromptedToAddBefore = true)
-                }
-                val result = snackbarHostState.showSnackbar(
-                    message = context.stringResource(AYMR.strings.snack_add_to_anime_library),
-                    actionLabel = context.stringResource(MR.strings.action_add),
-                    withDismissAction = true,
-                )
-                if (result == SnackbarResult.ActionPerformed && !isFavorited) {
-                    toggleFavorite()
-                }
             }
         }
     }
@@ -1545,14 +1337,7 @@ class AnimeScreenModel(
     // Track sheet - end
 
     sealed interface Dialog {
-        data class ChangeCategory(
-            val anime: Anime,
-            val initialSelection: ImmutableList<CheckboxState<Category>>,
-        ) : Dialog
         data class DeleteEpisodes(val episodes: List<Episode>) : Dialog
-        data class DuplicateAnime(val anime: Anime, val duplicate: Anime) : Dialog
-        data class Migrate(val newAnime: Anime, val oldAnime: Anime) : Dialog
-        data class SetAnimeFetchInterval(val anime: Anime) : Dialog
         data class ShowQualities(val episode: Episode, val anime: Anime, val source: AnimeSource) : Dialog
         data object ChangeAnimeSkipIntro : Dialog
         data object EpisodeSettingsSheet : Dialog
@@ -1582,13 +1367,79 @@ class AnimeScreenModel(
         updateSuccessState { it.copy(dialog = Dialog.TrackSheet) }
     }
 
-    fun showImagesDialog() {
-        updateSuccessState { it.copy(dialog = Dialog.FullImages) }
+    /**
+     * Resolves the MyAnimeList ids of this anime so it can be added to (or updated on) the MAL list.
+     */
+    suspend fun resolveMalEntryIds(): MalEntryIds? {
+        cachedMalEntryIds?.let { return it }
+        val anime = anime ?: return null
+        val tracks = try {
+            getTracks.await(anime.id)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${anime.title}" }
+            emptyList()
+        }
+        val ids = MalEntryResolver.forAnime(anime.id, anime.title, tracks)
+        if (ids != null) {
+            cachedMalEntryIds = ids
+        }
+        return ids
     }
 
-    fun showMigrateDialog(duplicate: Anime) {
-        val anime = successState?.anime ?: return
-        updateSuccessState { it.copy(dialog = Dialog.Migrate(newAnime = anime, oldAnime = duplicate)) }
+    /**
+     * Keeps the watched episodes of the anime in sync with its MyAnimeList entry.
+     *
+     * The anime is linked with the entry when it is on the user's list, then the progress of
+     * the list is applied to the local episodes, so an episode that was watched elsewhere is
+     * ticked without the user having to mark it again.
+     */
+    private suspend fun syncMalProgress(anime: Anime) {
+        val tracker = Injekt.get<TrackerManager>().myAnimeList
+        if (!tracker.isLoggedIn) return
+
+        val tracks = try {
+            getTracks.await(anime.id)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${anime.title}" }
+            emptyList()
+        }
+
+        val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID }
+        if (track == null) {
+            // Not linked yet - try it once, the lookup needs the network
+            if (malLinkAttempted) return
+            malLinkAttempted = true
+            linkWithMalEntry(anime, tracks)
+            return
+        }
+
+        // Apply the progress of the list to the local episodes
+        MalProgressSync.applyProgressForAnime(anime.id, track.remoteId)
+    }
+
+    /**
+     * Looks the anime up on MyAnimeList and links it, when it is on the user's list.
+     */
+    private suspend fun linkWithMalEntry(anime: Anime, tracks: List<AnimeTrack>) {
+        val tracker = Injekt.get<TrackerManager>().myAnimeList
+        val malId = MalEntryResolver.forAnime(anime.id, anime.title, tracks)?.malId ?: return
+        val status = try {
+            tracker.findListStatus(malId)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load the MyAnimeList status of ${anime.title}" }
+            null
+        } ?: return
+
+        MalProgressSync.linkAnime(
+            animeId = anime.id,
+            animeTitle = anime.title,
+            malId = malId,
+            episodesWatched = status.numEpisodesWatched.toInt(),
+        )
+    }
+
+    fun showImagesDialog() {
+        updateSuccessState { it.copy(dialog = Dialog.FullImages) }
     }
 
     fun showAnimeSkipIntroDialog() {
@@ -1616,7 +1467,6 @@ class AnimeScreenModel(
             val isLoadingRelatedAnime: Boolean = false,
             val isRefreshingData: Boolean = false,
             val dialog: Dialog? = null,
-            val hasPromptedToAddBefore: Boolean = false,
             val trackItems: List<AnimeTrackItem> = emptyList(),
             val nextAiringEpisode: Pair<Int, Long> = Pair(
                 anime.nextEpisodeToAir,

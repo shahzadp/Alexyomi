@@ -11,6 +11,9 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -122,14 +125,14 @@ abstract class HttpSource : CatalogueSource {
      *
      * @param page the page number to retrieve.
      */
-    protected abstract fun popularMangaRequest(page: Int): Request
+    protected open fun popularMangaRequest(page: Int): Request = throw UnsupportedOperationException()
 
     /**
      * Parses the response from the site and returns a [MangasPage] object.
      *
      * @param response the response from the site.
      */
-    protected abstract fun popularMangaParse(response: Response): MangasPage
+    protected open fun popularMangaParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     /**
      * Returns an observable containing a page with a list of manga. Normally it's not needed to
@@ -166,14 +169,15 @@ abstract class HttpSource : CatalogueSource {
      * @param query the search query.
      * @param filters the list of filters to apply.
      */
-    protected abstract fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request
+    protected open fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
+        throw UnsupportedOperationException()
 
     /**
      * Parses the response from the site and returns a [MangasPage] object.
      *
      * @param response the response from the site.
      */
-    protected abstract fun searchMangaParse(response: Response): MangasPage
+    protected open fun searchMangaParse(response: Response): MangasPage = throw UnsupportedOperationException()
 
     /**
      * Returns an observable containing a page with a list of latest manga updates.
@@ -194,14 +198,43 @@ abstract class HttpSource : CatalogueSource {
      *
      * @param page the page number to retrieve.
      */
-    protected abstract fun latestUpdatesRequest(page: Int): Request
+    protected open fun latestUpdatesRequest(page: Int): Request = throw UnsupportedOperationException()
 
     /**
      * Parses the response from the site and returns a [MangasPage] object.
      *
      * @param response the response from the site.
      */
-    protected abstract fun latestUpdatesParse(response: Response): MangasPage
+    protected open fun latestUpdatesParse(response: Response): MangasPage = throw UnsupportedOperationException()
+
+    /**
+     * Returns the base (home) URL of the website as a string.
+     *
+     * Used by the browse screen for "Open in WebView". Defaults to [baseUrl].
+     *
+     * @since tachiyomix 1.6
+     */
+    open fun getHomeUrl(): String = baseUrl
+
+    /**
+     * Fetches updated information for a manga. Details and chapters are fetched concurrently.
+     *
+     * Kept on the class (not just the interface default) so extensions compiled against any
+     * Kotlin JVM-default mode always dispatch here.
+     *
+     * @since tachiyomix 1.6
+     */
+    @Suppress("DEPRECATION")
+    override suspend fun getMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate = supervisorScope {
+        val asyncManga = if (fetchDetails) async { fetchMangaDetails(manga).awaitSingle() } else null
+        val asyncChapters = if (fetchChapters) async { fetchChapterList(manga).awaitSingle() } else null
+        SMangaUpdate(asyncManga?.await() ?: manga, asyncChapters?.await() ?: chapters)
+    }
 
     /**
      * Get the updated details for a manga.
@@ -210,9 +243,8 @@ abstract class HttpSource : CatalogueSource {
      * @param manga the manga to be updated.
      * @return the updated manga.
      */
-    @Suppress("DEPRECATION")
     override suspend fun getMangaDetails(manga: SManga): SManga {
-        return fetchMangaDetails(manga).awaitSingle()
+        return getMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getMangaDetails"))
@@ -239,7 +271,7 @@ abstract class HttpSource : CatalogueSource {
      *
      * @param response the response from the site.
      */
-    protected abstract fun mangaDetailsParse(response: Response): SManga
+    protected open fun mangaDetailsParse(response: Response): SManga = throw UnsupportedOperationException()
 
     /**
      * Get all the available chapters for a manga.
@@ -248,9 +280,8 @@ abstract class HttpSource : CatalogueSource {
      * @param manga the manga to update.
      * @return the chapters for the manga.
      */
-    @Suppress("DEPRECATION")
     override suspend fun getChapterList(manga: SManga): List<SChapter> {
-        return fetchChapterList(manga).awaitSingle()
+        return getMangaUpdate(manga, emptyList(), fetchDetails = false, fetchChapters = true).chapters
     }
 
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getChapterList"))
@@ -277,14 +308,8 @@ abstract class HttpSource : CatalogueSource {
      *
      * @param response the response from the site.
      */
-    protected abstract fun chapterListParse(response: Response): List<SChapter>
-
-    /**
-     * Parses the response from the site and returns a SChapter Object.
-     *
-     * @param response the response from the site.
-     */
-    protected abstract fun chapterPageParse(response: Response): SChapter
+    protected open fun chapterListParse(response: Response): List<SChapter> =
+        throw UnsupportedOperationException()
 
     /**
      * Get the list of pages a chapter has. Pages should be returned
@@ -322,7 +347,7 @@ abstract class HttpSource : CatalogueSource {
      *
      * @param response the response from the site.
      */
-    protected abstract fun pageListParse(response: Response): List<Page>
+    protected open fun pageListParse(response: Response): List<Page> = throw UnsupportedOperationException()
 
     /**
      * Returns an observable with the page containing the source url of the image. If there's any
@@ -358,7 +383,7 @@ abstract class HttpSource : CatalogueSource {
      *
      * @param response the response from the site.
      */
-    protected abstract fun imageUrlParse(response: Response): String
+    protected open fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     /**
      * Returns the response of the source image.

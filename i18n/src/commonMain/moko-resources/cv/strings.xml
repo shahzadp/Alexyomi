@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="manga">Вулавӑшри хайлавсем</string>
+    <string name="manga">Manga</string>
     <string name="used_cache">Усӑ курнӑ: %1$s</string>
     <string name="cookies_cleared">Куккисем катертнӗ</string>
     <string name="pref_clear_cookies">Кукки тасат</string>

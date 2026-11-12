@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="categories">類別</string>
-    <string name="manga">藏書</string>
+    <string name="manga">Manga</string>
     <string name="chapters">章節</string>
     <string name="history">記錄</string>
     <string name="label_settings">設定</string>

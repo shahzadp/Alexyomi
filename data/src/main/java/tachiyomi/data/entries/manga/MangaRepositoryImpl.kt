@@ -9,9 +9,6 @@ import tachiyomi.data.handlers.manga.MangaDatabaseHandler
 import tachiyomi.domain.entries.manga.model.Manga
 import tachiyomi.domain.entries.manga.model.MangaUpdate
 import tachiyomi.domain.entries.manga.repository.MangaRepository
-import tachiyomi.domain.library.manga.LibraryManga
-import java.time.LocalDate
-import java.time.ZoneId
 
 class MangaRepositoryImpl(
     private val handler: MangaDatabaseHandler,
@@ -35,6 +32,10 @@ class MangaRepositoryImpl(
         }
     }
 
+    override suspend fun getAllMangas(): List<Manga> {
+        return handler.awaitList { mangasQueries.getAllMangas(MangaMapper::mapManga) }
+    }
+
     override fun getMangaByUrlAndSourceIdAsFlow(url: String, sourceId: Long): Flow<Manga?> {
         return handler.subscribeToOneOrNull {
             mangasQueries.getMangaByUrlAndSource(
@@ -42,39 +43,6 @@ class MangaRepositoryImpl(
                 sourceId,
                 MangaMapper::mapManga,
             )
-        }
-    }
-
-    override suspend fun getMangaFavorites(): List<Manga> {
-        return handler.awaitList { mangasQueries.getFavorites(MangaMapper::mapManga) }
-    }
-
-    override suspend fun getReadMangaNotInLibrary(): List<Manga> {
-        return handler.awaitList { mangasQueries.getReadMangaNotInLibrary(MangaMapper::mapManga) }
-    }
-
-    override suspend fun getLibraryManga(): List<LibraryManga> {
-        return handler.awaitList { libraryViewQueries.library(MangaMapper::mapLibraryManga) }
-    }
-
-    override fun getLibraryMangaAsFlow(): Flow<List<LibraryManga>> {
-        return handler.subscribeToList { libraryViewQueries.library(MangaMapper::mapLibraryManga) }
-    }
-
-    override fun getMangaFavoritesBySourceId(sourceId: Long): Flow<List<Manga>> {
-        return handler.subscribeToList { mangasQueries.getFavoriteBySourceId(sourceId, MangaMapper::mapManga) }
-    }
-
-    override suspend fun getDuplicateLibraryManga(id: Long, title: String): List<Manga> {
-        return handler.awaitList {
-            mangasQueries.getDuplicateLibraryManga(title, id, MangaMapper::mapManga)
-        }
-    }
-
-    override suspend fun getUpcomingManga(statuses: Set<Long>): Flow<List<Manga>> {
-        val epochMillis = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000
-        return handler.subscribeToList {
-            mangasQueries.getUpcomingManga(epochMillis, statuses, MangaMapper::mapManga)
         }
     }
 
@@ -109,7 +77,6 @@ class MangaRepositoryImpl(
                 title = manga.title,
                 status = manga.status,
                 thumbnailUrl = manga.thumbnailUrl,
-                favorite = manga.favorite,
                 lastUpdate = manga.lastUpdate,
                 nextUpdate = manga.nextUpdate,
                 calculateInterval = manga.fetchInterval.toLong(),
@@ -158,7 +125,6 @@ class MangaRepositoryImpl(
                     title = value.title,
                     status = value.status,
                     thumbnailUrl = value.thumbnailUrl,
-                    favorite = value.favorite,
                     lastUpdate = value.lastUpdate,
                     nextUpdate = value.nextUpdate,
                     calculateInterval = value.fetchInterval?.toLong(),

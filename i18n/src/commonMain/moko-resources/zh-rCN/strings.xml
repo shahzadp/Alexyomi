@@ -2,7 +2,7 @@
 <resources>
     <string name="name">名称</string>
     <string name="categories">分类</string>
-    <string name="manga">书架中的作品</string>
+    <string name="manga">Manga</string>
     <string name="chapters">章节</string>
     <string name="history">历史</string>
     <string name="label_settings">设置</string>

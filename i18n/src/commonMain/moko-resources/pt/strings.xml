@@ -163,7 +163,7 @@
     <string name="download_notifier_unknown_error">Não foi possível transferir o capítulo devido a um erro inesperado</string>
     <string name="download_notifier_text_only_wifi">A ligação Wi-Fi está indisponível</string>
     <string name="categories">Categorias</string>
-    <string name="manga">Itens da biblioteca</string>
+    <string name="manga">Manga</string>
     <string name="track">Monitorização</string>
     <string name="history">Histórico</string>
     <string name="label_extensions">Extensões</string>

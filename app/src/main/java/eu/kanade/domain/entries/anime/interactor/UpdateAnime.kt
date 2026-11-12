@@ -45,14 +45,4 @@ class UpdateAnime(
             AnimeUpdate(id = animeId, backgroundLastModified = Instant.now().toEpochMilli()),
         )
     }
-
-    suspend fun awaitUpdateFavorite(animeId: Long, favorite: Boolean): Boolean {
-        val dateAdded = when (favorite) {
-            true -> Instant.now().toEpochMilli()
-            false -> 0
-        }
-        return animeRepository.updateAnime(
-            AnimeUpdate(id = animeId, favorite = favorite, dateAdded = dateAdded),
-        )
-    }
 }

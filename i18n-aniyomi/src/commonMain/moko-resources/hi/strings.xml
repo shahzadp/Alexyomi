@@ -9,7 +9,7 @@
     <string name="manga_categories">मंगा श्रेणियां</string>
     <string name="general_categories">श्रेणियाँ</string>
     <string name="anime_categories">एनीमे श्रेणियाँ</string>
-    <string name="entries">लाइब्रेरी प्रविष्टियों</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">अध्याय और एपिसोड</string>
     <string name="episodes">एपिसोड</string>
     <string name="backup_settings_warning">चेतावनी: सेटिंग्स का बैकअप लेने से आपके ट्रैक पासवर्ड भी संग्रहीत हो जाएंगे, इस बैकअप फ़ाइल को साझा न करें!</string>

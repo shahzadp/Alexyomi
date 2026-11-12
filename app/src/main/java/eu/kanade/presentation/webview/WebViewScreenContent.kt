@@ -176,13 +176,7 @@ fun WebViewScreenContent(
                         ) {
                             WarningBanner(
                                 textRes = MR.strings.information_cloudflare_help,
-                                modifier = Modifier
-                                    .clip(MaterialTheme.shapes.small)
-                                    .clickable {
-                                        uriHandler.openUri(
-                                            "https://aniyomi.org/docs/guides/troubleshooting/#cloudflare",
-                                        )
-                                    },
+                                modifier = Modifier.clip(MaterialTheme.shapes.small),
                             )
                         }
                     }

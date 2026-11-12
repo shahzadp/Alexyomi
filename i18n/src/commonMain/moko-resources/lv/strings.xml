@@ -333,7 +333,7 @@
     <string name="pref_category_reading_mode">Lasīšanas režīms</string>
     <string name="right_to_left_viewer">Lapaspuses (no labās puses uz kreiso)</string>
     <string name="vertical_viewer">Lapaspuses (vertikāli)</string>
-    <string name="manga">Bibliotēkas ieraksti</string>
+    <string name="manga">Manga</string>
     <string name="double_tap_anim_speed_fast">Ātrs</string>
     <string name="pref_rotation_type">Noklusējuma rotācijas tips</string>
     <string name="pref_high">Augsts</string>

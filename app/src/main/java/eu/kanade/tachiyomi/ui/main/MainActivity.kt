@@ -62,12 +62,11 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.anime.interactor.GetAnimeIncognitoState
 import eu.kanade.domain.source.manga.interactor.GetMangaIncognitoState
 import eu.kanade.presentation.components.AppStateBanners
-import eu.kanade.presentation.components.DownloadedOnlyBannerBackgroundColor
 import eu.kanade.presentation.components.IncognitoModeBannerBackgroundColor
 import eu.kanade.presentation.components.IndexingBannerBackgroundColor
 import eu.kanade.presentation.more.settings.screen.browse.AnimeExtensionStoresScreen
 import eu.kanade.presentation.more.settings.screen.browse.MangaExtensionReposScreen
-import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
+
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.DefaultNavigatorScreenTransition
 import eu.kanade.tachiyomi.BuildConfig
@@ -76,11 +75,11 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.core.common.Constants
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadCache
+import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadManager
+import tachiyomi.source.local.entries.anime.LocalAnimeSource
 import eu.kanade.tachiyomi.data.download.manga.MangaDownloadCache
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.player.service.HttpServerService
-import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
-import eu.kanade.tachiyomi.data.updater.RELEASE_URL
 import eu.kanade.tachiyomi.extension.anime.api.AnimeExtensionApi
 import eu.kanade.tachiyomi.extension.manga.api.MangaExtensionApi
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
@@ -94,7 +93,6 @@ import eu.kanade.tachiyomi.ui.deeplink.manga.DeepLinkMangaScreen
 import eu.kanade.tachiyomi.ui.entries.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.entries.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
-import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.player.ExternalIntents
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
@@ -102,15 +100,17 @@ import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
-import eu.kanade.tachiyomi.util.system.updaterEnabled
 import eu.kanade.tachiyomi.util.view.setComposeContent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -119,11 +119,12 @@ import logcat.LogPriority
 import mihon.core.migration.Migrator
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.entries.anime.interactor.GetAnime
+import tachiyomi.domain.items.episode.interactor.GetEpisode
 import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -176,14 +177,12 @@ class MainActivity : BaseActivity() {
 
             var incognito by remember { mutableStateOf(getMangaIncognitoState.await(null)) }
             var incognitoAnime by remember { mutableStateOf(getAnimeIncognitoState.await(null)) }
-            val downloadOnly by preferences.downloadedOnly().collectAsState()
             val indexing by downloadCache.isInitializing.collectAsState()
             val indexingAnime by animeDownloadCache.isInitializing.collectAsState()
 
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val statusBarBackgroundColor = when {
                 indexing || indexingAnime -> IndexingBannerBackgroundColor
-                downloadOnly -> DownloadedOnlyBannerBackgroundColor
                 incognito || incognitoAnime -> IncognitoModeBannerBackgroundColor
                 else -> MaterialTheme.colorScheme.surface
             }
@@ -232,7 +231,6 @@ class MainActivity : BaseActivity() {
                 Scaffold(
                     topBar = {
                         AppStateBanners(
-                            downloadedOnlyMode = downloadOnly,
                             incognitoMode = incognito || incognitoAnime,
                             indexing = indexing || indexingAnime,
                             modifier = Modifier.windowInsetsPadding(scaffoldInsets),
@@ -259,6 +257,12 @@ class MainActivity : BaseActivity() {
                                     .alpha(0.8f)
                                     .background(MaterialTheme.colorScheme.surfaceContainer),
                             )
+                        }
+                        // The stream of an episode has to be resolved before it can be handed
+                        // over to the external player, show that the app is working on it
+                        val preparingPlayback by MainActivity.preparingPlayback.collectAsState()
+                        if (preparingPlayback) {
+                            PreparingPlaybackOverlay()
                         }
                     }
                 }
@@ -299,11 +303,6 @@ class MainActivity : BaseActivity() {
                         Text(
                             text = stringResource(MR.strings.updated_version, BuildConfig.VERSION_NAME),
                         )
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { openInBrowser(RELEASE_URL) }) {
-                            Text(text = stringResource(MR.strings.whats_new))
-                        }
                     },
                     confirmButton = {
                         TextButton(onClick = { showChangelog = false }) {
@@ -371,26 +370,6 @@ class MainActivity : BaseActivity() {
     private fun CheckForUpdates() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-
-        // App updates
-        LaunchedEffect(Unit) {
-            if (updaterEnabled) {
-                try {
-                    val result = AppUpdateChecker().checkForUpdate(context)
-                    if (result is GetApplicationRelease.Result.NewUpdate) {
-                        val updateScreen = NewUpdateScreen(
-                            versionName = result.release.version,
-                            changelogInfo = result.release.info,
-                            releaseLink = result.release.releaseLink,
-                            downloadLink = result.release.downloadLink,
-                        )
-                        navigator.push(updateScreen)
-                    }
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR, e)
-                }
-            }
-        }
 
         // Extensions updates
         LaunchedEffect(Unit) {
@@ -468,31 +447,40 @@ class MainActivity : BaseActivity() {
             )
         }
 
-        val tabToOpen = when (intent.action) {
-            Constants.SHORTCUT_ANIMELIB -> HomeScreen.Tab.AnimeLib()
-            Constants.SHORTCUT_LIBRARY -> HomeScreen.Tab.Library()
+        when (intent.action) {
             Constants.SHORTCUT_MANGA -> {
                 val idToOpen = intent.extras?.getLong(Constants.MANGA_EXTRA) ?: return false
                 navigator.popUntilRoot()
-                HomeScreen.Tab.Library(idToOpen)
+                navigator.push(MangaScreen(idToOpen))
             }
             Constants.SHORTCUT_ANIME -> {
                 val idToOpen = intent.extras?.getLong(Constants.ANIME_EXTRA) ?: return false
                 navigator.popUntilRoot()
-                HomeScreen.Tab.AnimeLib(idToOpen)
+                navigator.push(AnimeScreen(idToOpen))
             }
-            Constants.SHORTCUT_UPDATES -> HomeScreen.Tab.Updates
-            Constants.SHORTCUT_HISTORY -> HomeScreen.Tab.History
-            Constants.SHORTCUT_SOURCES -> HomeScreen.Tab.Browse(false)
-            Constants.SHORTCUT_ANIMEEXTENSIONS -> HomeScreen.Tab.Browse(true, true)
-            Constants.SHORTCUT_EXTENSIONS -> HomeScreen.Tab.Browse(true)
+            Constants.SHORTCUT_HISTORY -> {
+                navigator.popUntilRoot()
+                lifecycleScope.launch { HomeScreen.openTab(HomeScreen.Tab.History) }
+            }
+            Constants.SHORTCUT_SOURCES -> {
+                navigator.popUntilRoot()
+                lifecycleScope.launch { HomeScreen.openTab(HomeScreen.Tab.Browse(false)) }
+            }
+            Constants.SHORTCUT_ANIMEEXTENSIONS -> {
+                navigator.popUntilRoot()
+                lifecycleScope.launch { HomeScreen.openTab(HomeScreen.Tab.Browse(true, true)) }
+            }
+            Constants.SHORTCUT_EXTENSIONS -> {
+                navigator.popUntilRoot()
+                lifecycleScope.launch { HomeScreen.openTab(HomeScreen.Tab.Browse(true)) }
+            }
             Constants.SHORTCUT_DOWNLOADS -> {
                 navigator.popUntilRoot()
-                HomeScreen.Tab.More(toDownloads = true)
+                lifecycleScope.launch { HomeScreen.openTab(HomeScreen.Tab.Downloads) }
             }
             Constants.SHORTCUT_ANIME_DOWNLOADS -> {
                 navigator.popUntilRoot()
-                HomeScreen.Tab.More(toDownloads = true)
+                lifecycleScope.launch { HomeScreen.openTab(HomeScreen.Tab.Downloads) }
             }
             Intent.ACTION_SEARCH, Intent.ACTION_SEND, "com.google.android.gms.actions.SEARCH_ACTION" -> {
                 // If the intent match the "standard" Android search intent
@@ -520,7 +508,6 @@ class MainActivity : BaseActivity() {
                         }
                     }
                 }
-                null
             }
             INTENT_SEARCH -> { // Used by extensions (url intent handlers)
                 val query = intent.getStringExtra(INTENT_SEARCH_QUERY)
@@ -529,7 +516,6 @@ class MainActivity : BaseActivity() {
                     navigator.popUntilRoot()
                     navigator.push(GlobalMangaSearchScreen(query, filter))
                 }
-                null
             }
             INTENT_ANIMESEARCH -> { // Same as above
                 val query = intent.getStringExtra(INTENT_SEARCH_QUERY)
@@ -538,16 +524,10 @@ class MainActivity : BaseActivity() {
                     navigator.popUntilRoot()
                     navigator.push(GlobalAnimeSearchScreen(query, filter))
                 }
-                null
             }
             Intent.ACTION_VIEW -> {
-                // Handling opening of backup files
-                if (intent.data.toString().endsWith(".tachibk")) {
-                    navigator.popUntilRoot()
-                    navigator.push(RestoreBackupScreen(intent.data.toString()))
-                }
                 // Deep link to add anime extension repo
-                else if (intent.isAddAnimeExtensionStoreIntent()) {
+                if (intent.isAddAnimeExtensionStoreIntent()) {
                     intent.data?.getQueryParameter("url")?.let { repoUrl ->
                         navigator.popUntilRoot()
                         navigator.push(AnimeExtensionStoresScreen(repoUrl))
@@ -559,13 +539,8 @@ class MainActivity : BaseActivity() {
                         navigator.push(MangaExtensionReposScreen(repoUrl))
                     }
                 }
-                null
             }
             else -> return false
-        }
-
-        if (tabToOpen != null) {
-            lifecycleScope.launch { HomeScreen.openTab(tabToOpen) }
         }
 
         ready = true
@@ -599,6 +574,14 @@ class MainActivity : BaseActivity() {
 
         private var externalPlayerResult: ActivityResultLauncher<Intent>? = null
 
+        /**
+         * Set while the app resolves the stream of an episode for the external player.
+         *
+         * The resolution needs a couple of network calls, so the user gets a loading overlay
+         * instead of a frozen screen while it runs.
+         */
+        internal val preparingPlayback = MutableStateFlow(false)
+
         suspend fun startPlayerActivity(
             context: Context,
             animeId: Long,
@@ -609,22 +592,68 @@ class MainActivity : BaseActivity() {
             hosterIndex: Int = -1,
             videoIndex: Int = -1,
             hosterList: List<Hoster>? = null,
+            allowExternalForOnline: Boolean = false,
         ) {
+            // The lookups below are only needed for the external player, the built-in one
+            // resolves everything on its own.
+            var isDownloaded = false
+            var isLocalSource = false
+            var animeSource = -1L
+            var useExternalPlayer = false
+
             if (extPlayer) {
-                val sourceId = sourceId ?: (Injekt.get<GetAnime>().await(animeId)?.source ?: -1L)
-                val (success, port) = startHttpServerService(context, sourceId)
-                if (!success) {
-                    withUIContext { Injekt.get<Application>().toast(AYMR.strings.http_server_start_failure) }
-                    return
+                val anime = withIOContext { Injekt.get<GetAnime>().await(animeId) }
+                animeSource = anime?.source ?: -1L
+                isLocalSource = anime?.source == LocalAnimeSource.ID
+                // Downloaded episodes are played as plain local files; they must not start the
+                // HTTP server (the local file is served through FileProvider).
+                isDownloaded = withIOContext {
+                    if (anime == null) {
+                        false
+                    } else {
+                        val episode = Injekt.get<GetEpisode>().await(episodeId)
+                        episode != null && Injekt.get<AnimeDownloadManager>().isEpisodeDownloaded(
+                            episode.name,
+                            episode.scanlator,
+                            anime.title,
+                            anime.source,
+                        )
+                    }
                 }
 
-                val video = video?.copyHttpServer(port)
+                // An external player only gets the plain stream url, without the headers a
+                // source needs, so it can only play downloaded episodes. Online episodes stay
+                // in the built-in player unless the user explicitly asked for the other one.
+                useExternalPlayer = isDownloaded || isLocalSource || allowExternalForOnline
+            }
+
+            if (useExternalPlayer) {
+                var video = video
+                // The local http server is only needed by sources that proxy their streams
+                // through the app (placeholder "http://localhost:1x" urls). Starting it for
+                // every stream fails on sources that don't implement it, so only do it on demand.
+                if (video?.usesHttpServer() == true && !isDownloaded && !isLocalSource) {
+                    val sourceId = sourceId ?: animeSource
+                    val (success, port) = startHttpServerService(context, sourceId)
+                    if (!success) {
+                        withUIContext { Injekt.get<Application>().toast(AYMR.strings.http_server_start_failure) }
+                        return
+                    }
+
+                    video = video.copyHttpServer(port)
+                }
+
+                preparingPlayback.value = true
                 val intent = try {
                     ExternalIntents.newIntent(context, animeId, episodeId, video)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e)
                     withUIContext { Injekt.get<Application>().toast(e.message) }
                     null
+                } finally {
+                    preparingPlayback.value = false
                 } ?: return
                 externalPlayerResult?.launch(intent) ?: return
             } else {
@@ -652,11 +681,17 @@ class MainActivity : BaseActivity() {
                     .putExtra(HttpServerService.EXTRA_SOURCE_ID, sourceId),
             )
 
-            val ready = withTimeoutOrNull(timeout) {
-                HttpServerService.isRunning.first { it }
+            val result = withTimeoutOrNull(timeout) {
+                combine(HttpServerService.isRunning, HttpServerService.failed) { running, failed ->
+                    running to failed
+                }.first { (running, failed) -> running || failed }
             }
 
-            return Pair(ready == true, HttpServerService.port)
+            return if (result?.first == true) {
+                Pair(true, HttpServerService.port)
+            } else {
+                Pair(false, 0)
+            }
         }
     }
 }

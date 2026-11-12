@@ -12,5 +12,11 @@ build
 # Configuration files
 local.properties
 
+# Signing keys and credentials - never commit these
+keystore/
+keystore.properties
+*.jks
+*.keystore
+
 # macOS specific files
 .DS_Store

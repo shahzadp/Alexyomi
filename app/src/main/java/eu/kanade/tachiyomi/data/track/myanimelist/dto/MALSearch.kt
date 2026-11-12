@@ -15,4 +15,5 @@ data class MALSearchResultNode(
 @Serializable
 data class MALSearchResultItem(
     val id: Int,
+    val title: String = "",
 )

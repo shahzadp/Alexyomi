@@ -74,15 +74,7 @@ class SourcePreferences(
     fun animeExtensionUpdatesCount() = preferenceStore.getInt("animeext_updates_count", 0)
     fun mangaExtensionUpdatesCount() = preferenceStore.getInt("ext_updates_count", 0)
 
-    fun hideInAnimeLibraryItems() = preferenceStore.getBoolean(
-        "browse_hide_in_anime_library_items",
-        false,
-    )
-
-    fun hideInMangaLibraryItems() = preferenceStore.getBoolean(
-        "browse_hide_in_library_items",
-        false,
-    )
+    // Legacy library-related preferences kept empty after the library was decommissioned.
 
     // SY -->
 

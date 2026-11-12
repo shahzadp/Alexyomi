@@ -38,8 +38,8 @@ class UpdateManga(
             ""
         }
 
-        // if the manga isn't a favorite, set its title from source and update in db
-        val title = if (remoteTitle.isEmpty() || localManga.favorite) null else remoteTitle
+        // always refresh the title from source
+        val title = remoteTitle.takeUnless { it.isEmpty() }
 
         val coverLastModified =
             when {
@@ -92,15 +92,5 @@ class UpdateManga(
 
     suspend fun awaitUpdateCoverLastModified(mangaId: Long): Boolean {
         return mangaRepository.updateManga(MangaUpdate(id = mangaId, coverLastModified = Instant.now().toEpochMilli()))
-    }
-
-    suspend fun awaitUpdateFavorite(mangaId: Long, favorite: Boolean): Boolean {
-        val dateAdded = when (favorite) {
-            true -> Instant.now().toEpochMilli()
-            false -> 0
-        }
-        return mangaRepository.updateManga(
-            MangaUpdate(id = mangaId, favorite = favorite, dateAdded = dateAdded),
-        )
     }
 }

@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
 import eu.kanade.tachiyomi.ui.player.PlayerOrientation
+import eu.kanade.tachiyomi.ui.player.VLC_PLAYER
 import eu.kanade.tachiyomi.ui.player.VideoAspect
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
@@ -64,11 +65,22 @@ class PlayerPreferences(
 
     // External player
 
+    /**
+     * Whether episodes are handed over to an external player (VLC by default).
+     *
+     * The built-in player is the default because it streams through the app's own http client,
+     * so it sends the headers a source needs and it controls the audio and subtitle tracks.
+     * External players ignore the headers, so many streams don't play there at all.
+     */
     fun alwaysUseExternalPlayer() = preferenceStore.getBoolean(
-        "pref_always_use_external_player",
+        "pref_play_in_external_player",
         false,
     )
-    fun externalPlayerPreference() = preferenceStore.getString("external_player_preference", "")
+    /**
+     * The package of the app used to play videos. Defaults to VLC, which handles both online
+     * streams and downloaded files.
+     */
+    fun externalPlayerPreference() = preferenceStore.getString("external_player_preference", VLC_PLAYER)
 
     // Non-preferences
 

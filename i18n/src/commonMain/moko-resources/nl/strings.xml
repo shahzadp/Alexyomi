@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Naam</string>
     <string name="categories">Categorieën</string>
-    <string name="manga">Bibliotheek</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Hoofdstukken</string>
     <string name="track">Tracking</string>
     <string name="history">Geschiedenis</string>

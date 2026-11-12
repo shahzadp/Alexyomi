@@ -4,12 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import aniyomi.domain.anime.SeasonAnime
 import aniyomi.domain.anime.SeasonDisplayMode
-import eu.kanade.presentation.library.components.DownloadsBadge
-import eu.kanade.presentation.library.components.EntryComfortableGridItem
-import eu.kanade.presentation.library.components.EntryCompactGridItem
-import eu.kanade.presentation.library.components.EntryListItem
-import eu.kanade.presentation.library.components.LanguageBadge
-import eu.kanade.presentation.library.components.UnviewedBadge
+import eu.kanade.presentation.components.DownloadsBadge
+import eu.kanade.presentation.components.EntryComfortableGridItem
+import eu.kanade.presentation.components.EntryCompactGridItem
+import eu.kanade.presentation.components.EntryListItem
+import eu.kanade.presentation.components.LanguageBadge
+import eu.kanade.presentation.components.UnviewedBadge
 import eu.kanade.presentation.util.formatEpisodeNumber
 import eu.kanade.tachiyomi.ui.entries.anime.AnimeSeasonItem
 import tachiyomi.domain.entries.anime.model.Anime
@@ -43,7 +43,6 @@ fun AnimeSeasonListItem(
                 coverData = AnimeCover(
                     animeId = itemAnime.id,
                     sourceId = itemAnime.source,
-                    isAnimeFavorite = itemAnime.favorite,
                     url = itemAnime.thumbnailUrl,
                     lastModified = itemAnime.coverLastModified,
                 ),
@@ -72,7 +71,6 @@ fun AnimeSeasonListItem(
                 coverData = AnimeCover(
                     animeId = itemAnime.id,
                     sourceId = itemAnime.source,
-                    isAnimeFavorite = itemAnime.favorite,
                     url = itemAnime.thumbnailUrl,
                     lastModified = itemAnime.coverLastModified,
                 ),
@@ -101,7 +99,6 @@ fun AnimeSeasonListItem(
                 coverData = AnimeCover(
                     animeId = itemAnime.id,
                     sourceId = itemAnime.source,
-                    isAnimeFavorite = itemAnime.favorite,
                     url = itemAnime.thumbnailUrl,
                     lastModified = itemAnime.coverLastModified,
                 ),

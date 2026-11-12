@@ -24,7 +24,6 @@ import eu.kanade.domain.items.chapter.interactor.SyncChaptersWithSource
 import eu.kanade.domain.items.episode.interactor.SetSeenStatus
 import eu.kanade.domain.items.episode.interactor.SyncEpisodesWithSource
 import eu.kanade.domain.source.anime.interactor.GetAnimeIncognitoState
-import eu.kanade.domain.source.anime.interactor.GetAnimeSourcesWithFavoriteCount
 import eu.kanade.domain.source.anime.interactor.GetEnabledAnimeSources
 import eu.kanade.domain.source.anime.interactor.GetLanguagesWithAnimeSources
 import eu.kanade.domain.source.anime.interactor.ToggleAnimeIncognito
@@ -35,7 +34,6 @@ import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.manga.interactor.GetEnabledMangaSources
 import eu.kanade.domain.source.manga.interactor.GetLanguagesWithMangaSources
 import eu.kanade.domain.source.manga.interactor.GetMangaIncognitoState
-import eu.kanade.domain.source.manga.interactor.GetMangaSourcesWithFavoriteCount
 import eu.kanade.domain.source.manga.interactor.ToggleMangaIncognito
 import eu.kanade.domain.source.manga.interactor.ToggleMangaSource
 import eu.kanade.domain.source.manga.interactor.ToggleMangaSourcePin
@@ -68,8 +66,6 @@ import mihon.domain.extensionrepo.service.ExtensionRepoService
 import mihon.domain.items.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.items.episode.interactor.FilterEpisodesForDownload
 import mihon.domain.source.interactor.UpdateAnimeFromRemote
-import mihon.domain.upcoming.anime.interactor.GetUpcomingAnime
-import mihon.domain.upcoming.manga.interactor.GetUpcomingManga
 import tachiyomi.data.category.anime.AnimeCategoryRepositoryImpl
 import tachiyomi.data.category.manga.MangaCategoryRepositoryImpl
 import tachiyomi.data.custombutton.CustomButtonRepositoryImpl
@@ -87,8 +83,6 @@ import tachiyomi.data.source.manga.MangaSourceRepositoryImpl
 import tachiyomi.data.source.manga.MangaStubSourceRepositoryImpl
 import tachiyomi.data.track.anime.AnimeTrackRepositoryImpl
 import tachiyomi.data.track.manga.MangaTrackRepositoryImpl
-import tachiyomi.data.updates.anime.AnimeUpdatesRepositoryImpl
-import tachiyomi.data.updates.manga.MangaUpdatesRepositoryImpl
 import tachiyomi.domain.category.anime.interactor.CreateAnimeCategoryWithName
 import tachiyomi.domain.category.anime.interactor.DeleteAnimeCategory
 import tachiyomi.domain.category.anime.interactor.GetAnimeCategories
@@ -125,10 +119,7 @@ import tachiyomi.domain.custombuttons.repository.CustomButtonRepository
 import tachiyomi.domain.entries.anime.interactor.AnimeFetchInterval
 import tachiyomi.domain.entries.anime.interactor.GetAnime
 import tachiyomi.domain.entries.anime.interactor.GetAnimeByUrlAndSourceId
-import tachiyomi.domain.entries.anime.interactor.GetAnimeFavorites
 import tachiyomi.domain.entries.anime.interactor.GetAnimeWithEpisodesAndSeasons
-import tachiyomi.domain.entries.anime.interactor.GetDuplicateLibraryAnime
-import tachiyomi.domain.entries.anime.interactor.GetLibraryAnime
 import tachiyomi.domain.entries.anime.interactor.GetRelatedAnime
 import tachiyomi.domain.entries.anime.interactor.NetworkToLocalAnime
 import tachiyomi.domain.entries.anime.interactor.ResetAnimeViewerFlags
@@ -136,11 +127,8 @@ import tachiyomi.domain.entries.anime.interactor.SetAnimeEpisodeFlags
 import tachiyomi.domain.entries.anime.interactor.SetAnimeSeasonFlags
 import tachiyomi.domain.entries.anime.repository.AnimeRelationRepository
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
-import tachiyomi.domain.entries.manga.interactor.GetDuplicateLibraryManga
-import tachiyomi.domain.entries.manga.interactor.GetLibraryManga
 import tachiyomi.domain.entries.manga.interactor.GetManga
 import tachiyomi.domain.entries.manga.interactor.GetMangaByUrlAndSourceId
-import tachiyomi.domain.entries.manga.interactor.GetMangaFavorites
 import tachiyomi.domain.entries.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.entries.manga.interactor.MangaFetchInterval
 import tachiyomi.domain.entries.manga.interactor.NetworkToLocalManga
@@ -177,11 +165,9 @@ import tachiyomi.domain.items.season.interactor.SetAnimeDefaultSeasonFlags
 import tachiyomi.domain.items.season.interactor.ShouldUpdateDbSeason
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
-import tachiyomi.domain.source.anime.interactor.GetAnimeSourcesWithNonLibraryAnime
 import tachiyomi.domain.source.anime.interactor.GetRemoteAnime
 import tachiyomi.domain.source.anime.repository.AnimeSourceRepository
 import tachiyomi.domain.source.anime.repository.AnimeStubSourceRepository
-import tachiyomi.domain.source.manga.interactor.GetMangaSourcesWithNonLibraryManga
 import tachiyomi.domain.source.manga.interactor.GetRemoteManga
 import tachiyomi.domain.source.manga.repository.MangaSourceRepository
 import tachiyomi.domain.source.manga.repository.MangaStubSourceRepository
@@ -195,10 +181,6 @@ import tachiyomi.domain.track.manga.interactor.GetMangaTracks
 import tachiyomi.domain.track.manga.interactor.GetTracksPerManga
 import tachiyomi.domain.track.manga.interactor.InsertMangaTrack
 import tachiyomi.domain.track.manga.repository.MangaTrackRepository
-import tachiyomi.domain.updates.anime.interactor.GetAnimeUpdates
-import tachiyomi.domain.updates.anime.repository.AnimeUpdatesRepository
-import tachiyomi.domain.updates.manga.interactor.GetMangaUpdates
-import tachiyomi.domain.updates.manga.repository.MangaUpdatesRepository
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addFactory
@@ -235,15 +217,11 @@ class DomainModule : InjektModule {
         addFactory { DeleteMangaCategory(get(), get(), get()) }
 
         addSingletonFactory<AnimeRepository> { AnimeRepositoryImpl(get()) }
-        addFactory { GetDuplicateLibraryAnime(get()) }
-        addFactory { GetAnimeFavorites(get()) }
-        addFactory { GetLibraryAnime(get()) }
         addFactory { GetAnimeWithEpisodesAndSeasons(get(), get()) }
         addFactory { GetAnimeByUrlAndSourceId(get()) }
         addFactory { GetAnime(get()) }
         addFactory { GetAnimeSeasonsByParentId(get()) }
         addFactory { GetNextEpisodes(get(), get(), get()) }
-        addFactory { GetUpcomingAnime(get()) }
         addFactory { ResetAnimeViewerFlags(get()) }
         addFactory { SetAnimeEpisodeFlags(get()) }
         addFactory { SetAnimeSeasonFlags(get()) }
@@ -262,14 +240,10 @@ class DomainModule : InjektModule {
         addFactory { SyncRelatedAnimeWithSource(get(), get(), get()) }
 
         addSingletonFactory<MangaRepository> { MangaRepositoryImpl(get()) }
-        addFactory { GetDuplicateLibraryManga(get()) }
-        addFactory { GetMangaFavorites(get()) }
-        addFactory { GetLibraryManga(get()) }
         addFactory { GetMangaWithChapters(get(), get()) }
         addFactory { GetMangaByUrlAndSourceId(get()) }
         addFactory { GetManga(get()) }
         addFactory { GetNextChapters(get(), get(), get()) }
-        addFactory { GetUpcomingManga(get()) }
         addFactory { ResetMangaViewerFlags(get()) }
         addFactory { SetMangaChapterFlags(get()) }
         addFactory { MangaFetchInterval(get()) }
@@ -354,19 +328,13 @@ class DomainModule : InjektModule {
         addFactory { GetExtensionSources(get()) }
         addFactory { GetMangaExtensionLanguages(get(), get()) }
 
-        addSingletonFactory<AnimeUpdatesRepository> { AnimeUpdatesRepositoryImpl(get()) }
-        addFactory { GetAnimeUpdates(get()) }
 
-        addSingletonFactory<MangaUpdatesRepository> { MangaUpdatesRepositoryImpl(get()) }
-        addFactory { GetMangaUpdates(get()) }
 
         addSingletonFactory<AnimeSourceRepository> { AnimeSourceRepositoryImpl(get(), get()) }
         addSingletonFactory<AnimeStubSourceRepository> { AnimeStubSourceRepositoryImpl(get()) }
         addFactory { GetEnabledAnimeSources(get(), get()) }
         addFactory { GetLanguagesWithAnimeSources(get(), get()) }
         addFactory { GetRemoteAnime(get()) }
-        addFactory { GetAnimeSourcesWithFavoriteCount(get(), get()) }
-        addFactory { GetAnimeSourcesWithNonLibraryAnime(get()) }
         addFactory { ToggleAnimeSource(get()) }
         addFactory { ToggleAnimeSourcePin(get()) }
 
@@ -375,8 +343,6 @@ class DomainModule : InjektModule {
         addFactory { GetEnabledMangaSources(get(), get()) }
         addFactory { GetLanguagesWithMangaSources(get(), get()) }
         addFactory { GetRemoteManga(get()) }
-        addFactory { GetMangaSourcesWithFavoriteCount(get(), get()) }
-        addFactory { GetMangaSourcesWithNonLibraryManga(get()) }
         addFactory { SetMigrateSorting(get()) }
         addFactory { ToggleLanguage(get()) }
         addFactory { ToggleMangaSource(get()) }

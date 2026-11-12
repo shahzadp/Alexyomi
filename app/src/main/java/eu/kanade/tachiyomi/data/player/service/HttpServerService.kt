@@ -45,6 +45,7 @@ class HttpServerService : Service() {
         val server = (sourceManager.get(sourceId) as? AnimeHttpSource)?.createHttpServer()
 
         if (server == null) {
+            _failed.update { _ -> true }
             stopSelf()
             return START_NOT_STICKY
         } else {
@@ -56,6 +57,14 @@ class HttpServerService : Service() {
             port = httpServer?.listeningPort ?: 0
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to start http server" }
+            _failed.update { _ -> true }
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (port <= 0) {
+            logcat(LogPriority.ERROR) { "Http server did not start" }
+            _failed.update { _ -> true }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -111,10 +120,18 @@ class HttpServerService : Service() {
 
         fun resetIsRunning() {
             _isRunning.update { _ -> false }
+            _failed.update { _ -> false }
         }
 
         private val _isRunning = MutableStateFlow(false)
         val isRunning = _isRunning.asStateFlow()
+
+        /**
+         * Set when the server could not be started, so the caller doesn't have to wait for the
+         * whole timeout before it knows that the stream can't be proxied.
+         */
+        private val _failed = MutableStateFlow(false)
+        val failed = _failed.asStateFlow()
 
         @Volatile
         var port: Int = 0

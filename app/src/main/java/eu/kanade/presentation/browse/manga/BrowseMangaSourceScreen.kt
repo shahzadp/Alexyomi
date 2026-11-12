@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.SnackbarDuration
@@ -47,10 +46,7 @@ fun BrowseSourceContent(
     snackbarHostState: SnackbarHostState,
     contentPadding: PaddingValues,
     onWebViewClick: () -> Unit,
-    onHelpClick: () -> Unit,
-    onLocalSourceHelpClick: () -> Unit,
     onMangaClick: (Manga) -> Unit,
-    onMangaLongClick: (Manga) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -79,16 +75,7 @@ fun BrowseSourceContent(
         EmptyScreen(
             modifier = Modifier.padding(contentPadding),
             message = getErrorMessage(errorState),
-            actions = if (source is LocalMangaSource) {
-                persistentListOf(
-                    EmptyScreenAction(
-                        stringRes = MR.strings.local_source_help_guide,
-                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                        onClick = onLocalSourceHelpClick,
-                    ),
-                )
-            } else {
-                persistentListOf(
+            actions = persistentListOf(
                     EmptyScreenAction(
                         stringRes = MR.strings.action_retry,
                         icon = Icons.Outlined.Refresh,
@@ -99,13 +86,7 @@ fun BrowseSourceContent(
                         icon = Icons.Outlined.Public,
                         onClick = onWebViewClick,
                     ),
-                    EmptyScreenAction(
-                        stringRes = MR.strings.label_help,
-                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                        onClick = onHelpClick,
-                    ),
-                )
-            },
+                ),
         )
 
         return
@@ -125,7 +106,6 @@ fun BrowseSourceContent(
                 columns = columns,
                 contentPadding = contentPadding,
                 onMangaClick = onMangaClick,
-                onMangaLongClick = onMangaLongClick,
             )
         }
         LibraryDisplayMode.List -> {
@@ -135,7 +115,6 @@ fun BrowseSourceContent(
                 topBarHeight = topBarHeight,
                 contentPadding = contentPadding,
                 onMangaClick = onMangaClick,
-                onMangaLongClick = onMangaLongClick,
             )
         }
         LibraryDisplayMode.CompactGrid, LibraryDisplayMode.CoverOnlyGrid -> {
@@ -144,7 +123,6 @@ fun BrowseSourceContent(
                 columns = columns,
                 contentPadding = contentPadding,
                 onMangaClick = onMangaClick,
-                onMangaLongClick = onMangaLongClick,
             )
         }
     }

@@ -12,13 +12,20 @@ import eu.kanade.tachiyomi.data.track.DeletableMangaTracker
 import eu.kanade.tachiyomi.data.track.MangaTracker
 import eu.kanade.tachiyomi.data.track.model.AnimeTrackSearch
 import eu.kanade.tachiyomi.data.track.model.MangaTrackSearch
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALAnimeListResponse
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListAnimeItemStatus
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALMangaListResponse
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListMangaItemStatus
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALOAuth
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.Json
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import uy.kohesive.injekt.injectLazy
+import eu.kanade.tachiyomi.ui.mal.MalRevision
 import tachiyomi.domain.track.anime.model.AnimeTrack as DomainAnimeTrack
 import tachiyomi.domain.track.manga.model.MangaTrack as DomainMangaTrack
 
@@ -49,6 +56,13 @@ class MyAnimeList(id: Long) :
         private val SCORE_LIST = IntRange(0, 10)
             .map(Int::toString)
             .toImmutableList()
+
+        /**
+         * The reason of the last failed sign in, so the UI can tell the user what went wrong
+         * instead of silently staying signed out.
+         */
+        var lastLoginError: String? = null
+            private set
     }
 
     private val json: Json by injectLazy()
@@ -137,7 +151,9 @@ class MyAnimeList(id: Long) :
             }
         }
 
-        return api.updateItem(track)
+        val updated = api.updateItem(track)
+        MalRevision.bump()
+        return updated
     }
 
     override suspend fun update(track: AnimeTrack, didWatchEpisode: Boolean): AnimeTrack {
@@ -155,7 +171,9 @@ class MyAnimeList(id: Long) :
             }
         }
 
-        return api.updateItem(track)
+        val updated = api.updateItem(track)
+        MalRevision.bump()
+        return updated
     }
 
     override suspend fun delete(track: DomainMangaTrack) {
@@ -254,7 +272,12 @@ class MyAnimeList(id: Long) :
             interceptor.setAuth(oauth)
             val username = api.getCurrentUser()
             saveCredentials(username, oauth.accessToken)
+            lastLoginError = null
         } catch (e: Throwable) {
+            // Keep the reason around, the sign in screen shows it instead of silently
+            // staying signed out.
+            lastLoginError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+            logcat(LogPriority.ERROR, e) { "MyAnimeList: login failed" }
             logout()
         }
     }
@@ -267,6 +290,83 @@ class MyAnimeList(id: Long) :
 
     fun getIfAuthExpired(): Boolean {
         return trackPreferences.trackAuthExpired(this).get()
+    }
+
+    suspend fun getProfilePicture(): String? {
+        if (!isLoggedIn) return null
+        return api.getProfilePicture()
+    }
+
+    suspend fun getMyProfile(): eu.kanade.tachiyomi.data.track.myanimelist.dto.MALUserProfile? {
+        if (!isLoggedIn) return null
+        return api.getMyProfile()
+    }
+
+    suspend fun deleteListEntry(animeId: Int) {
+        api.deleteListEntry(animeId)
+    }
+
+    suspend fun findListStatus(animeId: Int): eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListAnimeItemStatus? {
+        return api.findListStatus(animeId)
+    }
+
+    /**
+     * Lightweight search on MyAnimeList, returns the id and the title of the matches.
+     */
+    suspend fun searchAnimeTitles(query: String): List<Pair<Int, String>> {
+        return api.searchAnimeTitles(query)
+    }
+
+    /**
+     * Lightweight search on MyAnimeList, returns the id and the title of the manga matches.
+     */
+    suspend fun searchMangaTitles(query: String): List<Pair<Int, String>> {
+        return api.searchMangaTitles(query)
+    }
+
+    /**
+     * The details of an anime, straight from MyAnimeList.
+     *
+     * Used as a fallback for the entries AniList doesn't know.
+     */
+    suspend fun getAnimeDetails(animeId: Int): eu.kanade.tachiyomi.data.track.model.AnimeTrackSearch? {
+        return runCatching { api.getAnimeDetails(animeId) }.getOrNull()
+    }
+
+    suspend fun mangaListPage(status: String?, offset: Int = 0): MALMangaListResponse {
+        return api.mangaListPage(status = status, offset = offset)
+    }
+
+    suspend fun updateMangaListStatus(
+        mangaId: Int,
+        status: String? = null,
+        score: Int? = null,
+        numChaptersRead: Int? = null,
+        isReplaying: Boolean? = null,
+    ): MALListMangaItemStatus {
+        return api.updateMangaListStatus(mangaId, status, score, numChaptersRead, isReplaying)
+    }
+
+    suspend fun deleteMangaListEntry(mangaId: Int) {
+        api.deleteMangaListEntry(mangaId)
+    }
+
+    suspend fun findMangaListStatus(mangaId: Int): eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListMangaItemStatus? {
+        return api.findMangaListStatus(mangaId)
+    }
+
+    suspend fun animeListPage(status: String?, offset: Int = 0): MALAnimeListResponse {
+        return api.animeListPage(status = status, offset = offset)
+    }
+
+    suspend fun updateListStatus(
+        animeId: Int,
+        status: String? = null,
+        score: Int? = null,
+        numWatchedEpisodes: Int? = null,
+        isRewatching: Boolean? = null,
+    ): MALListAnimeItemStatus {
+        return api.updateListStatus(animeId, status, score, numWatchedEpisodes, isRewatching)
     }
 
     fun setAuthExpired() {

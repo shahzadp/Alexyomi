@@ -32,7 +32,9 @@ class MyAnimeListInterceptor(private val myanimelist: MyAnimeList) : Interceptor
         // Add the authorization header to the original request
         val authRequest = originalRequest.newBuilder()
             .addHeader("Authorization", "Bearer ${oauth!!.accessToken}")
-            // .header("User-Agent", "Aniyomi v${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})")
+            // MyAnimeList rejects every API request that doesn't carry the client id
+            .addHeader(MyAnimeListApi.CLIENT_ID_HEADER, MyAnimeListApi.CLIENT_ID)
+            // .header("User-Agent", "Alexyomi v${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})")
             .build()
 
         return chain.proceed(authRequest)

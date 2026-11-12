@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Nume</string>
     <string name="categories">Categorii</string>
-    <string name="manga">Intrări în bibliotecă</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Capitole</string>
     <string name="track">Urmărind</string>
     <string name="history">Istoric</string>

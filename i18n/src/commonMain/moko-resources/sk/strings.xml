@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Názov</string>
     <string name="categories">Kategórie</string>
-    <string name="manga">Záznamy v knižnici</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Kapitoly</string>
     <string name="track">Sledovanie</string>
     <string name="history">História</string>

@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.di
 
 import android.app.Application
-import aniyomi.core.common.torrent.TorrentPreferences
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.service.TrackPreferences
@@ -19,7 +18,6 @@ import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.storage.AndroidStorageFolderProvider
-import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.storage.service.StoragePreferences
@@ -67,7 +65,6 @@ class PreferenceModule(val app: Application) : InjektModule {
             AudioPreferences(get())
         }
         addSingletonFactory {
-            TorrentPreferences(get())
         }
         addSingletonFactory {
             AdvancedPlayerPreferences(get())
@@ -77,9 +74,6 @@ class PreferenceModule(val app: Application) : InjektModule {
         }
         addSingletonFactory {
             DownloadPreferences(get())
-        }
-        addSingletonFactory {
-            BackupPreferences(get())
         }
         addSingletonFactory {
             StoragePreferences(

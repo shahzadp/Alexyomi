@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Namn</string>
     <string name="categories">Kategorier</string>
-    <string name="manga">Biblioteksposter</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Kapitel</string>
     <string name="track">Spårning</string>
     <string name="history">Historik</string>

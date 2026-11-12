@@ -85,7 +85,7 @@
     <string name="manga_categories">만화 카테고리</string>
     <string name="general_categories">카테고리</string>
     <string name="anime_categories">애니메이션 카테고리</string>
-    <string name="entries">서재 항목</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">회차와 에피소드</string>
     <string name="episodes">에피소드</string>
     <string name="backup_settings_warning">경고: 설정을 백업하면 동기화 암호와 같은 민감한 정보도 저장됩니다, 이 백업 파일을 공유하지 마십시오!</string>

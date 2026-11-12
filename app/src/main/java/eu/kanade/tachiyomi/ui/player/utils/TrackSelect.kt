@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.player.utils
 
-import androidx.core.os.LocaleListCompat
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel.VideoTrack
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
@@ -33,7 +32,8 @@ class TrackSelect(
         }.split(",").filter(String::isNotEmpty).map(String::trim)
 
         val locales = prefLangs.map(::Locale).ifEmpty {
-            listOf(LocaleListCompat.getDefault()[0]!!)
+            // Fall back to English so dubbed tracks are preferred over the device language
+            listOf(Locale.ENGLISH)
         }
 
         val chosenLocale = locales.firstOrNull { locale ->

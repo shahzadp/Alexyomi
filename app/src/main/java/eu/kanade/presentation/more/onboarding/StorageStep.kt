@@ -98,12 +98,6 @@ internal class StorageStep : OnboardingStep {
             )
 
             Text(stringResource(MR.strings.onboarding_storage_help_info, stringResource(MR.strings.app_name)))
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { handler.openUri(SettingsDataScreen.HELP_URL) },
-            ) {
-                Text(stringResource(MR.strings.onboarding_storage_help_action))
-            }
         }
 
         LaunchedEffect(Unit) {

@@ -260,6 +260,13 @@ class AnimeDownloadManager(
     }
 
     /**
+     * Removes the given episodes from the download queue (if they are queued).
+     */
+    fun removeFromQueue(episodes: List<Episode>) {
+        downloader.removeFromQueue(episodes)
+    }
+
+    /**
      * Deletes the directories of a list of downloaded episodes.
      *
      * @param episodes the list of episodes to delete.

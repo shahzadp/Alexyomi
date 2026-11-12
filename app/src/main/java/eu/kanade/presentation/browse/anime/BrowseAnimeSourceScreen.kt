@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.SnackbarDuration
@@ -47,10 +46,7 @@ fun BrowseAnimeSourceContent(
     snackbarHostState: SnackbarHostState,
     contentPadding: PaddingValues,
     onWebViewClick: () -> Unit,
-    onHelpClick: () -> Unit,
-    onLocalAnimeSourceHelpClick: () -> Unit,
     onAnimeClick: (Anime) -> Unit,
-    onAnimeLongClick: (Anime) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -79,16 +75,7 @@ fun BrowseAnimeSourceContent(
         EmptyScreen(
             modifier = Modifier.padding(contentPadding),
             message = getErrorMessage(errorState),
-            actions = if (source is LocalAnimeSource) {
-                persistentListOf(
-                    EmptyScreenAction(
-                        stringRes = MR.strings.local_source_help_guide,
-                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                        onClick = onLocalAnimeSourceHelpClick,
-                    ),
-                )
-            } else {
-                persistentListOf(
+            actions = persistentListOf(
                     EmptyScreenAction(
                         stringRes = MR.strings.action_retry,
                         icon = Icons.Outlined.Refresh,
@@ -99,13 +86,7 @@ fun BrowseAnimeSourceContent(
                         icon = Icons.Outlined.Public,
                         onClick = onWebViewClick,
                     ),
-                    EmptyScreenAction(
-                        stringRes = MR.strings.label_help,
-                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                        onClick = onHelpClick,
-                    ),
-                )
-            },
+                ),
         )
 
         return
@@ -125,7 +106,6 @@ fun BrowseAnimeSourceContent(
                 columns = columns,
                 contentPadding = contentPadding,
                 onAnimeClick = onAnimeClick,
-                onAnimeLongClick = onAnimeLongClick,
             )
         }
         LibraryDisplayMode.List -> {
@@ -135,7 +115,6 @@ fun BrowseAnimeSourceContent(
                 topBarHeight = topBarHeight,
                 contentPadding = contentPadding,
                 onAnimeClick = onAnimeClick,
-                onAnimeLongClick = onAnimeLongClick,
             )
         }
         LibraryDisplayMode.CompactGrid, LibraryDisplayMode.CoverOnlyGrid -> {
@@ -144,7 +123,6 @@ fun BrowseAnimeSourceContent(
                 columns = columns,
                 contentPadding = contentPadding,
                 onAnimeClick = onAnimeClick,
-                onAnimeLongClick = onAnimeLongClick,
             )
         }
     }

@@ -1,15 +1,15 @@
 package tachiyomi.domain.items.chapter.interactor
 
 import tachiyomi.core.common.util.lang.withNonCancellableContext
-import tachiyomi.domain.entries.manga.interactor.GetMangaFavorites
 import tachiyomi.domain.entries.manga.interactor.SetMangaChapterFlags
 import tachiyomi.domain.entries.manga.model.Manga
+import tachiyomi.domain.entries.manga.repository.MangaRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 
 class SetMangaDefaultChapterFlags(
     private val libraryPreferences: LibraryPreferences,
     private val setMangaChapterFlags: SetMangaChapterFlags,
-    private val getFavorites: GetMangaFavorites,
+    private val mangaRepository: MangaRepository,
 ) {
 
     suspend fun await(manga: Manga) {
@@ -30,7 +30,7 @@ class SetMangaDefaultChapterFlags(
 
     suspend fun awaitAll() {
         withNonCancellableContext {
-            getFavorites.await().forEach { await(it) }
+            mangaRepository.getAllMangas().forEach { await(it) }
         }
     }
 }

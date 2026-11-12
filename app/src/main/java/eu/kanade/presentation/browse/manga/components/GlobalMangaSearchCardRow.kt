@@ -14,9 +14,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import eu.kanade.presentation.browse.InLibraryBadge
-import eu.kanade.presentation.library.components.CommonEntryItemDefaults
-import eu.kanade.presentation.library.components.EntryComfortableGridItem
+import eu.kanade.presentation.components.EntryComfortableGridItem
 import tachiyomi.domain.entries.manga.model.Manga
 import tachiyomi.domain.entries.manga.model.MangaCover
 import tachiyomi.domain.entries.manga.model.asMangaCover
@@ -45,7 +43,6 @@ fun GlobalMangaSearchCardRow(
             MangaItem(
                 title = title.title,
                 cover = title.asMangaCover(),
-                isFavorite = title.favorite,
                 onClick = { onClick(title) },
                 onLongClick = { onLongClick(title) },
             )
@@ -57,7 +54,6 @@ fun GlobalMangaSearchCardRow(
 private fun MangaItem(
     title: String,
     cover: MangaCover,
-    isFavorite: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -66,10 +62,6 @@ private fun MangaItem(
             title = title,
             titleMaxLines = 3,
             coverData = cover,
-            coverBadgeStart = {
-                InLibraryBadge(enabled = isFavorite)
-            },
-            coverAlpha = if (isFavorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
             onClick = onClick,
             onLongClick = onLongClick,
         )

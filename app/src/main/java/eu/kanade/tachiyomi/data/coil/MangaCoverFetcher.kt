@@ -47,7 +47,6 @@ import java.io.IOException
  */
 class MangaCoverFetcher(
     private val url: String?,
-    private val isLibraryManga: Boolean,
     private val options: Options,
     private val coverFileLazy: Lazy<File?>,
     private val customCoverFileLazy: Lazy<File>,
@@ -104,11 +103,7 @@ class MangaCoverFetcher(
 
     private suspend fun httpLoader(): FetchResult {
         // Only cache separately if it's a library item
-        val libraryCoverCacheFile = if (isLibraryManga) {
-            coverFileLazy.value ?: error("No cover specified")
-        } else {
-            null
-        }
+        val libraryCoverCacheFile: File? = null
         if (libraryCoverCacheFile?.exists() == true && options.diskCachePolicy.readEnabled) {
             return fileLoader(libraryCoverCacheFile)
         }
@@ -305,7 +300,6 @@ class MangaCoverFetcher(
         override fun create(data: Manga, options: Options, imageLoader: ImageLoader): Fetcher {
             return MangaCoverFetcher(
                 url = data.thumbnailUrl,
-                isLibraryManga = data.favorite,
                 options = options,
                 coverFileLazy = lazy { coverCache.getCoverFile(data.thumbnailUrl) },
                 customCoverFileLazy = lazy { coverCache.getCustomCoverFile(data.id) },
@@ -327,7 +321,6 @@ class MangaCoverFetcher(
         override fun create(data: MangaCover, options: Options, imageLoader: ImageLoader): Fetcher {
             return MangaCoverFetcher(
                 url = data.url,
-                isLibraryManga = data.isMangaFavorite,
                 options = options,
                 coverFileLazy = lazy { coverCache.getCoverFile(data.url) },
                 customCoverFileLazy = lazy { coverCache.getCustomCoverFile(data.mangaId) },

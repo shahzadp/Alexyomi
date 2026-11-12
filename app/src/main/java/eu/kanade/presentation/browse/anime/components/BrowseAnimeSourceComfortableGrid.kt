@@ -12,9 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.presentation.browse.BrowseSourceLoadingItem
-import eu.kanade.presentation.browse.InLibraryBadge
-import eu.kanade.presentation.library.components.CommonEntryItemDefaults
-import eu.kanade.presentation.library.components.EntryComfortableGridItem
+import eu.kanade.presentation.components.CommonEntryItemDefaults
+import eu.kanade.presentation.components.EntryComfortableGridItem
 import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.anime.model.AnimeCover
@@ -26,7 +25,6 @@ fun BrowseAnimeSourceComfortableGrid(
     columns: GridCells,
     contentPadding: PaddingValues,
     onAnimeClick: (Anime) -> Unit,
-    onAnimeLongClick: (Anime) -> Unit,
 ) {
     LazyVerticalGrid(
         columns = columns,
@@ -45,7 +43,6 @@ fun BrowseAnimeSourceComfortableGrid(
             BrowseAnimeSourceComfortableGridItem(
                 anime = anime,
                 onClick = { onAnimeClick(anime) },
-                onLongClick = { onAnimeLongClick(anime) },
             )
         }
 
@@ -68,14 +65,9 @@ private fun BrowseAnimeSourceComfortableGridItem(
         coverData = AnimeCover(
             animeId = anime.id,
             sourceId = anime.source,
-            isAnimeFavorite = anime.favorite,
             url = anime.thumbnailUrl,
             lastModified = anime.coverLastModified,
         ),
-        coverAlpha = if (anime.favorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-        coverBadgeStart = {
-            InLibraryBadge(enabled = anime.favorite)
-        },
         onLongClick = onLongClick,
         onClick = onClick,
     )

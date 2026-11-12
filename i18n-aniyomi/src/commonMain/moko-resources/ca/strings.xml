@@ -79,7 +79,7 @@
     <string name="manga_categories">Categories de manga</string>
     <string name="general_categories">Categories</string>
     <string name="anime_categories">Categories d\'anime</string>
-    <string name="entries">Entrades de biblioteca</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Capítols i episodis</string>
     <string name="episodes">Episodis</string>
     <string name="backup_settings_warning">Precaució: crear una còpia de seguretat desarà informació confidencial, com la teva clau d\'accès, no comparteixis l\'arxiu de còpia de seguretat!</string>

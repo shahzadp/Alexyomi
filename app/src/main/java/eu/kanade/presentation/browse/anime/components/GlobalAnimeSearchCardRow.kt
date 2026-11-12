@@ -14,9 +14,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import eu.kanade.presentation.browse.InLibraryBadge
-import eu.kanade.presentation.library.components.CommonEntryItemDefaults
-import eu.kanade.presentation.library.components.EntryComfortableGridItem
+import eu.kanade.presentation.components.EntryComfortableGridItem
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.anime.model.AnimeCover
 import tachiyomi.domain.entries.anime.model.asAnimeCover
@@ -45,7 +43,6 @@ fun GlobalAnimeSearchCardRow(
             AnimeItem(
                 title = title.title,
                 cover = title.asAnimeCover(),
-                isFavorite = title.favorite,
                 onClick = { onClick(title) },
                 onLongClick = { onLongClick(title) },
             )
@@ -57,7 +54,6 @@ fun GlobalAnimeSearchCardRow(
 private fun AnimeItem(
     title: String,
     cover: AnimeCover,
-    isFavorite: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -66,10 +62,6 @@ private fun AnimeItem(
             title = title,
             titleMaxLines = 3,
             coverData = cover,
-            coverBadgeStart = {
-                InLibraryBadge(enabled = isFavorite)
-            },
-            coverAlpha = if (isFavorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
             onClick = onClick,
             onLongClick = onLongClick,
         )

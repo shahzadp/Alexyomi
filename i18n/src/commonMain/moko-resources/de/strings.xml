@@ -2,7 +2,7 @@
 <resources>
     <string name="name">Name</string>
     <string name="categories">Kategorien</string>
-    <string name="manga">Bibliothekseinträge</string>
+    <string name="manga">Manga</string>
     <string name="chapters">Kapitel</string>
     <string name="history">Verlauf</string>
     <string name="label_settings">Einstellungen</string>

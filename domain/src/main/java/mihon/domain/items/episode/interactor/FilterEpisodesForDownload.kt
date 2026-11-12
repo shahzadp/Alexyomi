@@ -50,7 +50,6 @@ class FilterEpisodesForDownload(
      * @return `true` if episodes of the anime should be downloaded
      */
     private suspend fun Anime.shouldDownloadNewEpisodes(): Boolean {
-        if (!favorite) return false
         val categories = getCategories.await(id).map { it.id }.ifEmpty { listOf(DEFAULT_CATEGORY_ID) }
         val includedCategories = downloadPreferences.downloadNewEpisodeCategories().get().map { it.toLong() }
         val excludedCategories = downloadPreferences.downloadNewEpisodeCategoriesExclude().get().map { it.toLong() }

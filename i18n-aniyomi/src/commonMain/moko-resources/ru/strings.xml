@@ -237,7 +237,7 @@
     <string name="manga_categories">Категории манги</string>
     <string name="general_categories">Категории</string>
     <string name="anime_categories">Категории аниме</string>
-    <string name="entries">Тайтлы в библиотеке</string>
+    <string name="entries">Manga</string>
     <string name="chapters_episodes">Главы и эпизоды</string>
     <string name="episodes">Эпизоды</string>
     <string name="backup_settings_warning">Предупреждение: резервная копия настроек также сохранит ваши пароли к отслеживаемым, не передавайте этот файл резервной копии!</string>

@@ -11,6 +11,20 @@ data class MALListAnimeItem(
     val myListStatus: MALListAnimeItemStatus?,
 )
 
+/** Minimal response for reading my_list_status of a single anime. */
+@Serializable
+data class MALAnimeListStatusResponse(
+    @SerialName("my_list_status")
+    val myListStatus: MALListAnimeItemStatus? = null,
+)
+
+/** Minimal response for reading my_list_status of a single manga. */
+@Serializable
+data class MALMangaListStatusResponse(
+    @SerialName("my_list_status")
+    val myListStatus: MALListMangaItemStatus? = null,
+)
+
 @Serializable
 data class MALListAnimeItemStatus(
     @SerialName("is_rewatching")
@@ -23,6 +37,8 @@ data class MALListAnimeItemStatus(
     val startDate: String?,
     @SerialName("finish_date")
     val finishDate: String?,
+    @SerialName("updated_at")
+    val updatedAt: String? = null,
 )
 
 @Serializable
@@ -45,4 +61,6 @@ data class MALListMangaItemStatus(
     val startDate: String?,
     @SerialName("finish_date")
     val finishDate: String?,
+    @SerialName("updated_at")
+    val updatedAt: String? = null,
 )

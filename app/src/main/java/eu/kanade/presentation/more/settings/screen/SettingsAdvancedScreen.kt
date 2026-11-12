@@ -30,15 +30,9 @@ import eu.kanade.domain.extension.manga.interactor.TrustMangaExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.source.service.SourcePreferences.DataSaver
 import eu.kanade.presentation.more.settings.Preference
-import eu.kanade.presentation.more.settings.screen.advanced.ClearAnimeDatabaseScreen
-import eu.kanade.presentation.more.settings.screen.advanced.ClearDatabaseScreen
 import eu.kanade.presentation.more.settings.screen.debug.DebugInfoScreen
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadCache
 import eu.kanade.tachiyomi.data.download.manga.MangaDownloadCache
-import eu.kanade.tachiyomi.data.library.anime.AnimeLibraryUpdateJob
-import eu.kanade.tachiyomi.data.library.anime.AnimeMetadataUpdateJob
-import eu.kanade.tachiyomi.data.library.manga.MangaLibraryUpdateJob
-import eu.kanade.tachiyomi.data.library.manga.MangaMetadataUpdateJob
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.network.PREF_DOH_360
@@ -137,7 +131,6 @@ object SettingsAdvancedScreen : SearchableSettings {
             getBackgroundActivityGroup(),
             getDataGroup(),
             getNetworkGroup(networkPreferences = networkPreferences),
-            getLibraryGroup(),
             getReaderGroup(basePreferences = basePreferences),
             getExtensionsGroup(basePreferences = basePreferences),
             // SY -->
@@ -201,16 +194,6 @@ object SettingsAdvancedScreen : SearchableSettings {
                         Injekt.get<AnimeDownloadCache>().invalidateCache()
                         context.toast(MR.strings.download_cache_invalidated)
                     },
-                ),
-                Preference.PreferenceItem.TextPreference(
-                    title = stringResource(AYMR.strings.pref_clear_manga_database),
-                    subtitle = stringResource(AYMR.strings.pref_clear_manga_database_summary),
-                    onClick = { navigator.push(ClearDatabaseScreen()) },
-                ),
-                Preference.PreferenceItem.TextPreference(
-                    title = stringResource(AYMR.strings.pref_clear_anime_database),
-                    subtitle = stringResource(AYMR.strings.pref_clear_anime_database_summary),
-                    onClick = { navigator.push(ClearAnimeDatabaseScreen()) },
                 ),
             ),
         )
@@ -301,44 +284,6 @@ object SettingsAdvancedScreen : SearchableSettings {
                     onClick = {
                         userAgentPref.delete()
                         context.toast(MR.strings.requires_app_restart)
-                    },
-                ),
-            ),
-        )
-    }
-
-    @Composable
-    private fun getLibraryGroup(): Preference.PreferenceGroup {
-        val scope = rememberCoroutineScope()
-        val context = LocalContext.current
-
-        return Preference.PreferenceGroup(
-            title = stringResource(MR.strings.label_library),
-            preferenceItems = persistentListOf(
-                Preference.PreferenceItem.TextPreference(
-                    title = stringResource(MR.strings.pref_refresh_library_covers),
-                    onClick = {
-                        AnimeLibraryUpdateJob.startNow(context)
-                        MangaLibraryUpdateJob.startNow(context)
-                        AnimeMetadataUpdateJob.startNow(context)
-                        MangaMetadataUpdateJob.startNow(context)
-                    },
-                ),
-                Preference.PreferenceItem.TextPreference(
-                    title = stringResource(MR.strings.pref_reset_viewer_flags),
-                    subtitle = stringResource(MR.strings.pref_reset_viewer_flags_summary),
-                    onClick = {
-                        scope.launchNonCancellable {
-                            val success = Injekt.get<ResetMangaViewerFlags>().await()
-                            withUIContext {
-                                val message = if (success) {
-                                    MR.strings.pref_reset_viewer_flags_success
-                                } else {
-                                    MR.strings.pref_reset_viewer_flags_error
-                                }
-                                context.toast(message)
-                            }
-                        }
                     },
                 ),
             ),
