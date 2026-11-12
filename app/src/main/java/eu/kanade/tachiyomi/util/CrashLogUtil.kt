@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.extension.anime.AnimeExtensionManager
 import eu.kanade.tachiyomi.extension.manga.MangaExtensionManager
+import eu.kanade.tachiyomi.network.SourceMirrorRegistry
 import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.WebViewUtil
@@ -78,6 +79,7 @@ class CrashLogUtil(
             buildString {
                 appendLine("MAL signed in: ${tracker.isLoggedIn}")
                 MyAnimeList.lastLoginError?.let { appendLine("MAL last sign in error: $it") }
+                appendLine("Extension mirrors registered: ${SourceMirrorRegistry.registeredCount()}")
                 appendLine("MAL sync actions: ${events.size}")
                 events.forEach { appendLine("  $it") }
             }.trimEnd()

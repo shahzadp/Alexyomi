@@ -7,6 +7,8 @@ import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListMangaItemStatus
 import kotlinx.coroutines.flow.first
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.entries.anime.repository.AnimeRepository
+import tachiyomi.domain.entries.manga.repository.MangaRepository
 import tachiyomi.domain.items.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.items.chapter.interactor.UpdateChapter
 import tachiyomi.domain.items.chapter.model.ChapterUpdate
@@ -50,6 +52,8 @@ object MalProgressSync {
     private val updateEpisode: UpdateEpisode = Injekt.get()
     private val getChapters: GetChaptersByMangaId = Injekt.get()
     private val updateChapter: UpdateChapter = Injekt.get()
+    private val animeRepository: AnimeRepository = Injekt.get()
+    private val mangaRepository: MangaRepository = Injekt.get()
     private val tracker: MyAnimeList = Injekt.get<TrackerManager>().myAnimeList
 
     /**
@@ -63,9 +67,12 @@ object MalProgressSync {
         animeTitle: String,
         malId: Int,
         episodesWatched: Int,
+        skipStatusLookup: Boolean = false,
+        statusId: Long? = null,
+        totalEpisodes: Long = 0L,
     ) {
         try {
-            val status = tracker.findListStatus(malId)
+            val status = if (skipStatusLookup) null else tracker.findListStatus(malId)
             val existing = getAnimeTracks.await(animeId).firstOrNull { it.trackerId == MAL_TRACKER_ID }
 
             insertAnimeTrack.await(
@@ -77,8 +84,8 @@ object MalProgressSync {
                     libraryId = existing?.libraryId,
                     title = animeTitle,
                     lastEpisodeSeen = episodesWatched.toDouble(),
-                    totalEpisodes = existing?.totalEpisodes ?: 0L,
-                    status = status.toStatusId(),
+                    totalEpisodes = totalEpisodes.takeIf { it > 0 } ?: existing?.totalEpisodes ?: 0L,
+                    status = statusId ?: status.toStatusId(),
                     score = (status?.score ?: 0).toDouble(),
                     remoteUrl = "https://myanimelist.net/anime/$malId",
                     startDate = existing?.startDate ?: 0L,
@@ -103,9 +110,10 @@ object MalProgressSync {
         mangaTitle: String,
         malId: Int,
         chaptersRead: Int,
+        skipStatusLookup: Boolean = false,
     ) {
         try {
-            val status = tracker.findMangaListStatus(malId)
+            val status = if (skipStatusLookup) null else tracker.findMangaListStatus(malId)
             val existing = getMangaTracks.await(mangaId).firstOrNull { it.trackerId == MAL_TRACKER_ID }
 
             insertMangaTrack.await(
@@ -137,21 +145,44 @@ object MalProgressSync {
     /**
      * Applies the progress of the user's list to the local episodes of the linked animes.
      *
-     * Only entries that are ahead of the local progress are applied, so episodes that were
-     * watched in the app are never unticked.
+     * Entries that are not linked yet are linked with the local anime of the same title, so
+     * the progress also arrives for anime the user has not opened since the list was synced.
      */
     suspend fun applyListProgress(entries: List<MalListScreenModel.MalListEntry>) {
         if (entries.isEmpty()) return
         try {
             val tracks = animeTrackRepository.getAnimeTracksAsFlow().first()
                 .filter { it.trackerId == MAL_TRACKER_ID }
-            if (tracks.isEmpty()) return
-
             val tracksByRemoteId = tracks.associateBy { it.remoteId }
+
+            // Already linked - just apply the progress
             for (entry in entries) {
                 val track = tracksByRemoteId[entry.id] ?: continue
-                if (entry.progress <= track.lastEpisodeSeen) continue
-                applyAnimeProgress(track.animeId, entry.progress)
+                if (entry.progress > track.lastEpisodeSeen) {
+                    applyAnimeProgress(track.animeId, entry.progress)
+                }
+            }
+
+            // Not linked yet - find the local anime with the same title
+            val linked = tracksByRemoteId.keys.toSet()
+            val unlinked = entries.filter { it.id !in linked }
+            if (unlinked.isEmpty()) return
+
+            val local = localAnimeTitles()
+            if (local.isEmpty()) return
+
+            for (entry in unlinked) {
+                val match = MalTitleMatcher.best(entry.title, local) ?: continue
+                logEvent("Linked anime ${match.first} with MyAnimeList entry ${entry.id} ('${entry.title}')")
+                linkAnime(
+                    animeId = match.first,
+                    animeTitle = match.second,
+                    malId = entry.id.toInt(),
+                    episodesWatched = entry.progress,
+                    skipStatusLookup = true,
+                    statusId = entry.status.toStatusId(),
+                    totalEpisodes = entry.total?.toLong() ?: 0L,
+                )
             }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to apply the MyAnimeList progress" }
@@ -159,21 +190,52 @@ object MalProgressSync {
     }
 
     /**
+     * The local anime and their titles.
+     */
+    private suspend fun localAnimeTitles(): List<Pair<Long, String>> {
+        return try {
+            animeRepository.getAllAnimes().map { it.id to it.title }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load the local anime" }
+            emptyList()
+        }
+    }
+
+    /**
      * Applies the progress of the user's manga list to the local chapters of the linked
-     * mangas.
+     * mangas, and links the ones that are not linked yet.
      */
     suspend fun applyMangaListProgress(entries: List<MalListScreenModel.MalListEntry>) {
         if (entries.isEmpty()) return
         try {
             val tracks = mangaTrackRepository.getMangaTracksAsFlow().first()
                 .filter { it.trackerId == MAL_TRACKER_ID }
-            if (tracks.isEmpty()) return
-
             val tracksByRemoteId = tracks.associateBy { it.remoteId }
+
             for (entry in entries) {
                 val track = tracksByRemoteId[entry.id] ?: continue
-                if (entry.progress <= track.lastChapterRead) continue
-                applyMangaProgress(track.mangaId, entry.progress)
+                if (entry.progress > track.lastChapterRead) {
+                    applyMangaProgress(track.mangaId, entry.progress)
+                }
+            }
+
+            val linked = tracksByRemoteId.keys.toSet()
+            val unlinked = entries.filter { it.id !in linked }
+            if (unlinked.isEmpty()) return
+
+            val local = localMangaTitles()
+            if (local.isEmpty()) return
+
+            for (entry in unlinked) {
+                val match = MalTitleMatcher.best(entry.title, local) ?: continue
+                logEvent("Linked manga ${match.first} with MyAnimeList entry ${entry.id} ('${entry.title}')")
+                linkManga(
+                    mangaId = match.first,
+                    mangaTitle = match.second,
+                    malId = entry.id.toInt(),
+                    chaptersRead = entry.progress,
+                    skipStatusLookup = true,
+                )
             }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to apply the MyAnimeList manga progress" }
@@ -181,21 +243,37 @@ object MalProgressSync {
     }
 
     /**
+     * The local manga and their titles.
+     */
+    private suspend fun localMangaTitles(): List<Pair<Long, String>> {
+        return try {
+            mangaRepository.getAllMangas().map { it.id to it.title }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load the local manga" }
+            emptyList()
+        }
+    }
+
+    /**
      * Applies the progress of the MyAnimeList entry of the anime to the local episodes.
      *
      * The cached list is used first, MyAnimeList is only asked when the list isn't cached.
+     *
+     * @return the progress that was applied, or null when it is unknown
      */
-    suspend fun applyProgressForAnime(animeId: Long, malId: Long) {
-        val progress = progressOfAnime(malId) ?: return
+    suspend fun applyProgressForAnime(animeId: Long, malId: Long): Int? {
+        val progress = progressOfAnime(malId) ?: return null
         applyAnimeProgress(animeId, progress)
+        return progress
     }
 
     /**
      * Applies the progress of the MyAnimeList entry of the manga to the local chapters.
      */
-    suspend fun applyProgressForManga(mangaId: Long, malId: Long) {
-        val progress = progressOfManga(malId) ?: return
+    suspend fun applyProgressForManga(mangaId: Long, malId: Long): Int? {
+        val progress = progressOfManga(malId) ?: return null
         applyMangaProgress(mangaId, progress)
+        return progress
     }
 
     private suspend fun progressOfAnime(malId: Long): Int? {
@@ -222,7 +300,7 @@ object MalProgressSync {
      */
     fun recentEvents(): List<String> = recentEvents.toList()
 
-    private fun logEvent(message: String) {
+    fun logEvent(message: String) {
         synchronized(recentEvents) {
             recentEvents.addFirst(message)
             while (recentEvents.size > 20) recentEvents.removeLast()
@@ -267,28 +345,27 @@ object MalProgressSync {
     /**
      * Converts the MyAnimeList status into the id the tracker uses.
      */
-    private fun MALListAnimeItemStatus?.toStatusId(): Long =
-        when (this?.status) {
+    private fun String?.toStatusId(): Long =
+        when (this) {
             "watching" -> MyAnimeList.WATCHING
+            "reading" -> MyAnimeList.READING
             "completed" -> MyAnimeList.COMPLETED
             "on_hold" -> MyAnimeList.ON_HOLD
             "dropped" -> MyAnimeList.DROPPED
             "plan_to_watch" -> MyAnimeList.PLAN_TO_WATCH
+            "plan_to_read" -> MyAnimeList.PLAN_TO_READ
             "rewatching" -> MyAnimeList.REWATCHING
+            "rereading" -> MyAnimeList.REREADING
             else -> MyAnimeList.PLAN_TO_WATCH
         }
 
     /**
      * Converts the MyAnimeList status into the id the tracker uses.
      */
-    private fun MALListMangaItemStatus?.toStatusId(): Long =
-        when (this?.status) {
-            "reading" -> MyAnimeList.READING
-            "completed" -> MyAnimeList.COMPLETED
-            "on_hold" -> MyAnimeList.ON_HOLD
-            "dropped" -> MyAnimeList.DROPPED
-            "plan_to_read" -> MyAnimeList.PLAN_TO_READ
-            "rereading" -> MyAnimeList.REREADING
-            else -> MyAnimeList.PLAN_TO_READ
-        }
+    private fun MALListAnimeItemStatus?.toStatusId(): Long = this?.status.toStatusId()
+
+    /**
+     * Converts the MyAnimeList status into the id the tracker uses.
+     */
+    private fun MALListMangaItemStatus?.toStatusId(): Long = this?.status.toStatusId()
 }

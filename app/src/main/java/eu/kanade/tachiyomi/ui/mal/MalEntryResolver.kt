@@ -77,17 +77,24 @@ object MalEntryResolver {
         val candidates = mutableListOf<Candidate>()
 
         // The user's own list
-        MalListStore.read(mediaType)?.forEach { entry ->
+        val cached = MalListStore.read(mediaType)
+        cached?.forEach { entry ->
             candidates += Candidate(malId = entry.id.toInt(), anilistId = null, title = entry.title)
         }
 
         // AniList knows the mapping between both
-        searchByAnilist(title)?.forEach { candidate -> candidates += candidate }
+        val anilistResults = searchByAnilist(title)
+        anilistResults.forEach { candidate -> candidates += candidate }
 
         // MyAnimeList knows the entries AniList doesn't have
-        searchByMal(title, mediaType)?.forEach { (id, entryTitle) ->
+        val malResults = searchByMal(title, mediaType)
+        malResults.forEach { (id, entryTitle) ->
             candidates += Candidate(malId = id, anilistId = null, title = entryTitle)
         }
+
+        MalProgressSync.logEvent(
+            "Lookup '$title': list=${cached?.size ?: -1}, anilist=${anilistResults.size}, mal=${malResults.size}",
+        )
 
         // The one whose title matches best wins
         var best: Candidate? = null
@@ -99,8 +106,14 @@ object MalEntryResolver {
                 best = candidate
             }
         }
-        if (best == null || bestScore < MalTitleMatcher.MIN_SCORE) return null
+        if (best == null || bestScore < MalTitleMatcher.MIN_SCORE) {
+            MalProgressSync.logEvent("No MyAnimeList match for '$title' (best score $bestScore)")
+            return null
+        }
 
+        MalProgressSync.logEvent(
+            "Matched '$title' with MyAnimeList entry ${best.malId} ('${best.title}', score $bestScore)",
+        )
         return MalEntryIds(anilistId = best.anilistId, malId = best.malId)
     }
 
@@ -110,7 +123,7 @@ object MalEntryResolver {
     private suspend fun searchByAnilist(title: String): List<Candidate> {
         return try {
             val api = AnilistBrowseApi(Injekt.get<NetworkHelper>().client)
-            val result = withTimeout(20.seconds) { api.searchAnime(title) }
+            val result = withTimeout(8.seconds) { api.searchAnime(title) }
             result.items.map {
                 Candidate(malId = it.malId, anilistId = it.anilistId, title = it.title)
             }

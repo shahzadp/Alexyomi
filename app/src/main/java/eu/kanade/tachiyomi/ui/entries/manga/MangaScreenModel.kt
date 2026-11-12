@@ -966,7 +966,10 @@ class MangaScreenModel(
         }
 
         // Apply the progress of the list to the local chapters
-        MalProgressSync.applyProgressForManga(manga.id, track.remoteId)
+        val progress = MalProgressSync.applyProgressForManga(manga.id, track.remoteId)
+        if (progress != null) {
+            MalProgressSync.logEvent("Applied MAL progress $progress to manga ${manga.id}")
+        }
     }
 
     /**

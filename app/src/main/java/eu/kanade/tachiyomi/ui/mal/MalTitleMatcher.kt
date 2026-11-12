@@ -71,8 +71,8 @@ object MalTitleMatcher {
     /**
      * The best matching candidate, or null when nothing matches well enough.
      */
-    fun best(query: String, candidates: List<Pair<Int, String>>): Pair<Int, String>? {
-        var best: Pair<Int, String>? = null
+    fun <T> best(query: String, candidates: List<Pair<T, String>>): Pair<T, String>? {
+        var best: Pair<T, String>? = null
         var bestScore = 0
         for (candidate in candidates) {
             val score = score(query, candidate.second)

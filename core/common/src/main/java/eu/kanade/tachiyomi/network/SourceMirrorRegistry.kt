@@ -52,4 +52,9 @@ object SourceMirrorRegistry {
         }
         return resolved
     }
+
+    /**
+     * How many hosts have mirrors registered.
+     */
+    fun registeredCount(): Int = mirrors.size
 }

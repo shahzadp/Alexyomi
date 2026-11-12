@@ -212,9 +212,7 @@ class AnimeScreenModel(
                 .distinctUntilChanged()
                 .flowWithLifecycle(lifecycle)
                 .collectLatest { (anime, episodes, _) ->
-                    if (episodes.isNotEmpty()) {
-                        syncMalProgress(anime)
-                    }
+                    syncMalProgress(anime)
                 }
         }
 
@@ -1415,7 +1413,10 @@ class AnimeScreenModel(
         }
 
         // Apply the progress of the list to the local episodes
-        MalProgressSync.applyProgressForAnime(anime.id, track.remoteId)
+        val progress = MalProgressSync.applyProgressForAnime(anime.id, track.remoteId)
+        if (progress != null) {
+            MalProgressSync.logEvent("Applied MAL progress $progress to anime ${anime.id}")
+        }
     }
 
     /**
@@ -1423,13 +1424,23 @@ class AnimeScreenModel(
      */
     private suspend fun linkWithMalEntry(anime: Anime, tracks: List<AnimeTrack>) {
         val tracker = Injekt.get<TrackerManager>().myAnimeList
-        val malId = MalEntryResolver.forAnime(anime.id, anime.title, tracks)?.malId ?: return
+        val ids = MalEntryResolver.forAnime(anime.id, anime.title, tracks)
+        val malId = ids?.malId
+        if (malId == null) {
+            MalProgressSync.logEvent("No MyAnimeList entry for '${anime.title}' (id ${anime.id})")
+            return
+        }
+
         val status = try {
             tracker.findListStatus(malId)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to load the MyAnimeList status of ${anime.title}" }
             null
-        } ?: return
+        }
+        if (status == null) {
+            MalProgressSync.logEvent("MyAnimeList entry $malId is not on the user's list")
+            return
+        }
 
         MalProgressSync.linkAnime(
             animeId = anime.id,

@@ -4,6 +4,7 @@ import android.net.Uri
 import eu.kanade.tachiyomi.extension.anime.api.AnimeExtensionApi
 import eu.kanade.tachiyomi.extension.manga.api.MangaExtensionApi
 import eu.kanade.tachiyomi.network.SourceMirrorRegistry
+import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 
 /**
  * Registers the alternative hosts (mirrors) of the installed extensions.
@@ -61,6 +62,8 @@ object SourceMirrorSetup {
         }
 
         registerMirrors(sources)
+
+        MalProgressSync.logEvent("Registered mirrors for ${SourceMirrorRegistry.registeredCount()} host(s)")
     }
 
     private fun hostOf(url: String): String? = try {
