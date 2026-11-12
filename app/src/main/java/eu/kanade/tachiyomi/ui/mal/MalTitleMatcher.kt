@@ -16,6 +16,11 @@ object MalTitleMatcher {
     private const val SCORE_TOKEN_BASE = 50
 
     /**
+     * The score of two titles that only differ in their season.
+     */
+    private const val SCORE_DIFFERENT_SEASON = 15
+
+    /**
      * A shared word that is specific enough to identify an anime on its own.
      */
     private const val DISTINCTIVE_TOKEN_BONUS = 25
@@ -36,6 +41,20 @@ object MalTitleMatcher {
     const val MIN_SCORE = 30
 
     /**
+     * Words that mark a season, a part or a volume. They tell two entries of the same show
+     * apart, so a title that only adds one of them is a different entry.
+     */
+    private val SEASON_MARKERS = listOf(
+        "season", "part", "volume", "vol", "2nd", "3rd", "4th", "5th", "6th", "7th",
+        "second", "third", "fourth", "fifth", "sixth", "seventh",
+    )
+
+    /**
+     * A candidate with the score it reached.
+     */
+    data class Match<T>(val item: T, val title: String, val score: Int)
+
+    /**
      * Score of [query] against [candidate]. Zero means they don't look alike at all.
      */
     fun score(query: String, candidate: String): Int {
@@ -43,8 +62,8 @@ object MalTitleMatcher {
         val b = normalize(candidate)
         if (a.isEmpty() || b.isEmpty()) return 0
         if (a == b) return SCORE_EXACT
-        if (b.startsWith(a)) return SCORE_PREFIX
-        if (a.startsWith(b)) return SCORE_SUFFIX
+        if (b.startsWith(a)) return prefixScore(a, b)
+        if (a.startsWith(b)) return prefixScore(b, a)
         if (b.contains(a)) return SCORE_CONTAINS
         if (a.contains(b)) return SCORE_CONTAINS - 5
 
@@ -69,19 +88,41 @@ object MalTitleMatcher {
     }
 
     /**
+     * The score of a title that starts with the other one.
+     *
+     * "Oshi no Ko" and "Oshi no Ko 3rd Season" are different entries, so the longer one only
+     * scores when it doesn't add a season marker.
+     */
+    private fun prefixScore(shorter: String, longer: String): Int {
+        val remainder = longer.removePrefix(shorter).trim()
+        if (remainder.isEmpty()) return SCORE_EXACT
+        if (hasSeasonMarker(remainder)) return SCORE_DIFFERENT_SEASON
+        return SCORE_PREFIX
+    }
+
+    private fun hasSeasonMarker(text: String): Boolean {
+        val tokens = text.split(' ')
+        return tokens.any { token -> SEASON_MARKERS.any { marker -> token.contains(marker) } }
+    }
+
+    /**
      * The best matching candidate, or null when nothing matches well enough.
      */
-    fun <T> best(query: String, candidates: List<Pair<T, String>>): Pair<T, String>? {
-        var best: Pair<T, String>? = null
-        var bestScore = 0
+    fun <T> best(query: String, candidates: List<Pair<T, String>>): Pair<T, String>? =
+        bestMatch(query, candidates)?.let { it.item to it.title }
+
+    /**
+     * The best matching candidate with the score it reached.
+     */
+    fun <T> bestMatch(query: String, candidates: List<Pair<T, String>>): Match<T>? {
+        var best: Match<T>? = null
         for (candidate in candidates) {
             val score = score(query, candidate.second)
-            if (score > bestScore) {
-                bestScore = score
-                best = candidate
+            if (best == null || score > best.score) {
+                best = Match(candidate.first, candidate.second, score)
             }
         }
-        return best?.takeIf { bestScore >= MIN_SCORE }
+        return best?.takeIf { it.score >= MIN_SCORE }
     }
 
     private fun isDistinctive(token: String): Boolean =

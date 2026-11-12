@@ -111,6 +111,7 @@ object MalProgressSync {
         malId: Int,
         chaptersRead: Int,
         skipStatusLookup: Boolean = false,
+        statusId: Long? = null,
     ) {
         try {
             val status = if (skipStatusLookup) null else tracker.findMangaListStatus(malId)
@@ -126,7 +127,7 @@ object MalProgressSync {
                     title = mangaTitle,
                     lastChapterRead = chaptersRead.toDouble(),
                     totalChapters = existing?.totalChapters ?: 0L,
-                    status = status.toStatusId(),
+                    status = statusId ?: status.toStatusId(),
                     score = (status?.score ?: 0).toDouble(),
                     remoteUrl = "https://myanimelist.net/manga/$malId",
                     startDate = existing?.startDate ?: 0L,
@@ -171,12 +172,24 @@ object MalProgressSync {
             val local = localAnimeTitles()
             if (local.isEmpty()) return
 
+            // Several entries can match the same local anime (the seasons of a show), so the
+            // best match wins - not the one that happened to be processed last.
+            val bestPerLocal = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
             for (entry in unlinked) {
-                val match = MalTitleMatcher.best(entry.title, local) ?: continue
-                logEvent("Linked anime ${match.first} with MyAnimeList entry ${entry.id} ('${entry.title}')")
+                val match = MalTitleMatcher.bestMatch(entry.title, local) ?: continue
+                val current = bestPerLocal[match.item]
+                if (current == null || match.score > current.score) {
+                    bestPerLocal[match.item] = MalTitleMatcher.Match(entry, entry.title, match.score)
+                }
+            }
+
+            for ((localId, match) in bestPerLocal) {
+                val entry = match.item
+                val title = local.first { it.first == localId }.second
+                logEvent("Linked anime $localId with MyAnimeList entry ${entry.id} ('${entry.title}', score ${match.score})")
                 linkAnime(
-                    animeId = match.first,
-                    animeTitle = match.second,
+                    animeId = localId,
+                    animeTitle = title,
                     malId = entry.id.toInt(),
                     episodesWatched = entry.progress,
                     skipStatusLookup = true,
@@ -226,15 +239,27 @@ object MalProgressSync {
             val local = localMangaTitles()
             if (local.isEmpty()) return
 
+            // Several entries can match the same local manga, the best match wins
+            val bestPerLocal = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
             for (entry in unlinked) {
-                val match = MalTitleMatcher.best(entry.title, local) ?: continue
-                logEvent("Linked manga ${match.first} with MyAnimeList entry ${entry.id} ('${entry.title}')")
+                val match = MalTitleMatcher.bestMatch(entry.title, local) ?: continue
+                val current = bestPerLocal[match.item]
+                if (current == null || match.score > current.score) {
+                    bestPerLocal[match.item] = MalTitleMatcher.Match(entry, entry.title, match.score)
+                }
+            }
+
+            for ((localId, match) in bestPerLocal) {
+                val entry = match.item
+                val title = local.first { it.first == localId }.second
+                logEvent("Linked manga $localId with MyAnimeList entry ${entry.id} ('${entry.title}', score ${match.score})")
                 linkManga(
-                    mangaId = match.first,
-                    mangaTitle = match.second,
+                    mangaId = localId,
+                    mangaTitle = title,
                     malId = entry.id.toInt(),
                     chaptersRead = entry.progress,
                     skipStatusLookup = true,
+                    statusId = entry.status.toStatusId(),
                 )
             }
         } catch (e: Exception) {

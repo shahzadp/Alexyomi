@@ -134,6 +134,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         // so a request can be moved to a working mirror when the primary domain is dead.
         scope.launch {
             delay(2.seconds)
+            SourceMirrorSetup.registerMirrorsFromExtensions()
             SourceMirrorSetup.refreshMirrors()
         }
 

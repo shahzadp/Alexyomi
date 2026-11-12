@@ -73,6 +73,25 @@ anywhere else in the tree — only in `keystore.properties`, which is gitignored
 lose it, the key can no longer be used to sign updates for an already published app, so keep
 a copy of the password somewhere safe.
 
+### MyAnimeList progress sync
+
+The watched episodes of the local anime and the progress of the MyAnimeList list are kept in
+sync in both directions:
+
+- **app → MAL**: watching an episode updates `num_watched_episodes` on MAL.
+- **MAL → app**: the progress of the list is applied to the local episodes.
+
+Both use the tracker table of the app - a local anime that is on the user's list gets a MAL
+track, which maps the MAL id to the local anime. The list itself links its entries with the
+local anime of the same title, so the progress arrives without opening every anime by hand.
+
+The title matching (`MalTitleMatcher`) is the delicate part: the seasons of a show have almost
+the same title, so a title that only adds a season marker does not match. There are unit tests
+for it in `app/src/test/java/eu/kanade/tachiyomi/ui/mal/`.
+
+When something is off, the debug info (Settings → Advanced → dump crash logs) shows the state
+of the sync and every step it took.
+
 ### Source mirrors
 
 Extensions can ship **mirrors** - alternative domains for the same site. The app reads them from
