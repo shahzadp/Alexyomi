@@ -48,6 +48,7 @@ import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
 import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.util.applyDubPreferenceToAnimeSources
+import eu.kanade.tachiyomi.util.SourceMirrorSetup
 import eu.kanade.tachiyomi.util.storage.LegacyStorageMigration
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.GLUtil
@@ -127,6 +128,14 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 delay(1.seconds)
                 applyDubPreferenceToAnimeSources(applicationContext)
             }
+        }
+
+        // Some extensions ship mirrors - alternative domains for the same site. Register them,
+        // so a request can be moved to a working mirror when the primary domain is dead.
+        scope.launch {
+            delay(2.seconds)
+            SourceMirrorSetup.installResolver(applicationContext)
+            SourceMirrorSetup.registerMirrors(applicationContext)
         }
 
         // Tick the episodes that were watched on MyAnimeList, so they don't have to be marked

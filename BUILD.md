@@ -73,6 +73,23 @@ anywhere else in the tree — only in `keystore.properties`, which is gitignored
 lose it, the key can no longer be used to sign updates for an already published app, so keep
 a copy of the password somewhere safe.
 
+### Source mirrors
+
+Extensions can ship **mirrors** - alternative domains for the same site. The app reads them from
+the extension's own settings (`preferred_mirror`) and registers them per host.
+
+`SourceMirrorInterceptor` then moves a request to a working mirror when the site answers with
+its website instead of the requested api, which is what happens when the primary domain is
+decommissioned:
+
+```
+GET https://example.to/api/v1/search   →  200 text/html      (the frontend, not the api)
+GET https://example.cz/api/v1/search   →  200 application/json  ✅
+```
+
+Only requests that ask for JSON (`Accept: application/json, …`) and get HTML back are retried,
+so normal page requests are never touched.
+
 ## ABI splits
 
 `splits.abi` produces per-ABI APKs plus a universal one. Install the arm64 one for modern phones:
