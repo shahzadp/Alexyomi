@@ -54,6 +54,11 @@ sealed class AnimeExtension {
             val lang: String,
             val name: String,
             val baseUrl: String,
+            /**
+             * Alternative domains for the same site. Used when the primary one stops
+             * serving the api.
+             */
+            val mirrorUrls: List<String> = emptyList(),
         ) {
             fun toStubSource(): StubAnimeSource {
                 return StubAnimeSource(

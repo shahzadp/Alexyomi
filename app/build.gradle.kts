@@ -46,6 +46,11 @@ android {
         versionCode = 132
         versionName = "0.18.2.1"
 
+        // The scheme the tracker logins redirect to. It has to match the one that is
+        // registered at the tracker, so only the release build can use it - otherwise two
+        // installed builds would fight over the same redirect.
+        manifestPlaceholders["authScheme"] = "aniyomi"
+
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")
         buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
@@ -71,6 +76,10 @@ android {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-${getCommitCount()}"
             isPseudoLocalesEnabled = true
+
+            // The release build owns the tracker redirect, so the debug build must not
+            // claim it - otherwise the sign in can end up in the wrong app.
+            manifestPlaceholders["authScheme"] = "aniyomi-debug"
         }
         val release by getting {
             isMinifyEnabled = Config.enableCodeShrink

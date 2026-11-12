@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.extension.manga.model.MangaLoadResult
 import eu.kanade.tachiyomi.extension.manga.util.MangaExtensionInstallReceiver
 import eu.kanade.tachiyomi.extension.manga.util.MangaExtensionInstaller
 import eu.kanade.tachiyomi.extension.manga.util.MangaExtensionLoader
+import eu.kanade.tachiyomi.util.SourceMirrorSetup
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -153,6 +154,14 @@ class MangaExtensionManager(
         availableExtensionsMapFlow.value = extensions.associateBy { it.pkgName }
         updatedInstalledExtensionsStatuses(extensions)
         setupAvailableExtensionsSourcesDataMap(extensions)
+
+        // Register the mirrors of the extensions, so a request can be moved to a working one
+        // when the primary domain stopped serving the api
+        SourceMirrorSetup.registerMirrors(
+            extensions.flatMap { extension ->
+                extension.sources.map { source -> source.baseUrl to source.mirrorUrls }
+            },
+        )
     }
 
     /**

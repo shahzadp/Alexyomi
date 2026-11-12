@@ -86,6 +86,7 @@ object MalProgressSync {
                     private = existing?.private ?: false,
                 ),
             )
+            logEvent("Linked anime $animeId with MyAnimeList entry $malId")
 
             // The episodes that were already watched on the list are ticked right away
             applyAnimeProgress(animeId, episodesWatched)
@@ -125,6 +126,7 @@ object MalProgressSync {
                     private = existing?.private ?: false,
                 ),
             )
+            logEvent("Linked manga $mangaId with MyAnimeList entry $malId")
 
             applyMangaProgress(mangaId, chaptersRead)
         } catch (e: Exception) {
@@ -211,6 +213,24 @@ object MalProgressSync {
     }
 
     /**
+     * The last things the sync did, so the debug info can show what is going on.
+     */
+    private val recentEvents = ArrayDeque<String>()
+
+    /**
+     * The last sync actions, newest first.
+     */
+    fun recentEvents(): List<String> = recentEvents.toList()
+
+    private fun logEvent(message: String) {
+        synchronized(recentEvents) {
+            recentEvents.addFirst(message)
+            while (recentEvents.size > 20) recentEvents.removeLast()
+        }
+        logcat(LogPriority.INFO) { message }
+    }
+
+    /**
      * Marks every episode up to [progress] of the anime as watched.
      */
     suspend fun applyAnimeProgress(animeId: Long, progress: Int) {
@@ -224,7 +244,7 @@ object MalProgressSync {
         if (toUpdate.isEmpty()) return
 
         updateEpisode.awaitAll(toUpdate.map { EpisodeUpdate(id = it.id, seen = true) })
-        logcat(LogPriority.INFO) { "Marked ${toUpdate.size} episode(s) of anime $animeId as watched" }
+        logEvent("Marked ${toUpdate.size} episode(s) of anime $animeId as watched (progress $progress)")
     }
 
     /**
@@ -241,7 +261,7 @@ object MalProgressSync {
         if (toUpdate.isEmpty()) return
 
         updateChapter.awaitAll(toUpdate.map { ChapterUpdate(id = it.id, read = true) })
-        logcat(LogPriority.INFO) { "Marked ${toUpdate.size} chapter(s) of manga $mangaId as read" }
+        logEvent("Marked ${toUpdate.size} chapter(s) of manga $mangaId as read (progress $progress)")
     }
 
     /**

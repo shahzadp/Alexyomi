@@ -222,7 +222,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="aniyomi"/>
+                <data android:scheme="${authScheme}"/>
 
                 <data android:host="myanimelist-auth" />
                 <data android:host="anilist-auth" />

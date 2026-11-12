@@ -134,8 +134,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         // so a request can be moved to a working mirror when the primary domain is dead.
         scope.launch {
             delay(2.seconds)
-            SourceMirrorSetup.installResolver(applicationContext)
-            SourceMirrorSetup.registerMirrors(applicationContext)
+            SourceMirrorSetup.refreshMirrors()
         }
 
         // Tick the episodes that were watched on MyAnimeList, so they don't have to be marked

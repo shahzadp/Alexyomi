@@ -184,6 +184,7 @@ internal class MangaExtensionApi {
                 lang = source.language.orEmpty(),
                 name = source.name.orEmpty(),
                 baseUrl = source.homeUrl.orEmpty(),
+                mirrorUrls = source.mirrorUrls,
             )
         }
 
@@ -231,6 +232,7 @@ private data class ExtensionSourceJsonObject(
     val lang: String,
     val name: String,
     val baseUrl: String,
+    val mirrorUrls: List<String> = emptyList(),
 )
 
 /**
@@ -273,6 +275,7 @@ private data class ExtensionStoreSourceJsonObject(
     val name: String? = null,
     val language: String? = null,
     val homeUrl: String? = null,
+    val mirrorUrls: List<String> = emptyList(),
 )
 
 private fun String.toAbsoluteUrl(repoUrl: String): String {
@@ -285,5 +288,6 @@ private val extensionSourceMapper: (ExtensionSourceJsonObject) -> MangaExtension
         lang = it.lang,
         name = it.name,
         baseUrl = it.baseUrl,
+        mirrorUrls = it.mirrorUrls,
     )
 }

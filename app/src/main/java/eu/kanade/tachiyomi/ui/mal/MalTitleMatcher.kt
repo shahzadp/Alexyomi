@@ -16,6 +16,26 @@ object MalTitleMatcher {
     private const val SCORE_TOKEN_BASE = 50
 
     /**
+     * A shared word that is specific enough to identify an anime on its own.
+     */
+    private const val DISTINCTIVE_TOKEN_BONUS = 25
+    private const val MIN_DISTINCTIVE_TOKEN_LENGTH = 4
+
+    /**
+     * Words that are too common to identify an anime.
+     */
+    private val STOP_WORDS = setOf(
+        "the", "and", "for", "with", "of", "a", "an", "to", "in", "on", "at", "no", "tv",
+        "movie", "series", "season", "part", "second", "third", "new", "final", "OVA", "ONA",
+        "dub", "sub", "english", "japanese", "episode", "episodes",
+    )
+
+    /**
+     * Minimum score for a title to be considered the same anime.
+     */
+    const val MIN_SCORE = 30
+
+    /**
      * Score of [query] against [candidate]. Zero means they don't look alike at all.
      */
     fun score(query: String, candidate: String): Int {
@@ -33,10 +53,19 @@ object MalTitleMatcher {
         val tokensA = a.split(' ').filter { it.length > 1 }.toSet()
         val tokensB = b.split(' ').filter { it.length > 1 }.toSet()
         if (tokensA.isEmpty() || tokensB.isEmpty()) return 0
-        val shared = tokensA.intersect(tokensB).size
-        if (shared == 0) return 0
+        val shared = tokensA.intersect(tokensB)
+        if (shared.isEmpty()) return 0
 
-        return SCORE_TOKEN_BASE * shared / maxOf(tokensA.size, tokensB.size)
+        var score = SCORE_TOKEN_BASE * shared.size / maxOf(tokensA.size, tokensB.size)
+
+        // A shared word that is specific enough identifies the anime on its own, even when
+        // the rest of the titles have nothing in common ("sousou no frieren" /
+        // "frieren beyond journey's end").
+        if (shared.any { isDistinctive(it) }) {
+            score += DISTINCTIVE_TOKEN_BONUS
+        }
+
+        return score
     }
 
     /**
@@ -52,9 +81,11 @@ object MalTitleMatcher {
                 best = candidate
             }
         }
-        // A single shared word out of many isn't a match
-        return best?.takeIf { bestScore >= 30 }
+        return best?.takeIf { bestScore >= MIN_SCORE }
     }
+
+    private fun isDistinctive(token: String): Boolean =
+        token.length >= MIN_DISTINCTIVE_TOKEN_LENGTH && token !in STOP_WORDS
 
     /**
      * Lower case, without punctuation and with collapsed spaces.

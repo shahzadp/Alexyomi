@@ -112,6 +112,7 @@ fun NetworkAnimeExtensionStore.ExtensionList.toAvailableExtensions(
                     name = source.name,
                     lang = source.language,
                     baseUrl = source.homeUrl,
+                    mirrorUrls = source.mirrorUrls,
                 )
             },
             store = store,

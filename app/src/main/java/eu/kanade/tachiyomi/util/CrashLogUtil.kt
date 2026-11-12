@@ -3,8 +3,11 @@ package eu.kanade.tachiyomi.util
 import android.content.Context
 import android.os.Build
 import eu.kanade.tachiyomi.BuildConfig
+import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.extension.anime.AnimeExtensionManager
 import eu.kanade.tachiyomi.extension.manga.MangaExtensionManager
+import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
@@ -56,12 +59,31 @@ class CrashLogUtil(
             MPV version: 6764488
             Libplacebo version: v7.349.0
             FFmpeg version: n7.1
+            ${malDebugInfo()}
         """.trimIndent()
         // TODO: Use this again (from aniyomi-mpv-lib 1.17.n onwards):
 
         //    MPV version: ${Utils.VERSIONS.mpv}
         //    Libplacebo version: ${Utils.VERSIONS.libPlacebo}
         //    FFmpeg version: ${Utils.VERSIONS.ffmpeg}
+    }
+
+    /**
+     * The state of the MyAnimeList sync, so a broken sync can be seen without a debugger.
+     */
+    private fun malDebugInfo(): String {
+        return try {
+            val tracker = Injekt.get<TrackerManager>().myAnimeList
+            val events = MalProgressSync.recentEvents()
+            buildString {
+                appendLine("MAL signed in: ${tracker.isLoggedIn}")
+                MyAnimeList.lastLoginError?.let { appendLine("MAL last sign in error: $it") }
+                appendLine("MAL sync actions: ${events.size}")
+                events.forEach { appendLine("  $it") }
+            }.trimEnd()
+        } catch (e: Exception) {
+            "MAL sync: unavailable ($e)"
+        }
     }
 
     private fun getMangaExtensionsInfo(): String? {

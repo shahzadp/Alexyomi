@@ -145,7 +145,7 @@ class AnimeScreenModel(
     private var cachedMalEntryIds: MalEntryIds? = null
 
     /** The link with MyAnimeList is only looked up once per screen. */
-    private var malLinkAttempted = false
+    private var lastMalLinkAttempt = 0L
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -1406,9 +1406,10 @@ class AnimeScreenModel(
 
         val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID }
         if (track == null) {
-            // Not linked yet - try it once, the lookup needs the network
-            if (malLinkAttempted) return
-            malLinkAttempted = true
+            // Not linked yet - look the entry up, but not on every single update
+            val now = System.currentTimeMillis()
+            if (now - lastMalLinkAttempt < MAL_LINK_RETRY_INTERVAL) return
+            lastMalLinkAttempt = now
             linkWithMalEntry(anime, tracks)
             return
         }
@@ -1448,6 +1449,13 @@ class AnimeScreenModel(
 
     private fun showQualitiesDialog(episode: Episode) {
         updateSuccessState { it.copy(dialog = Dialog.ShowQualities(episode, it.anime, it.source)) }
+    }
+
+    companion object {
+        /**
+         * How long to wait before the MyAnimeList entry is looked up again.
+         */
+        private const val MAL_LINK_RETRY_INTERVAL = 30_000L
     }
 
     sealed interface State {

@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.extension.anime.model.AnimeLoadResult
 import eu.kanade.tachiyomi.extension.anime.util.AnimeExtensionInstallReceiver
 import eu.kanade.tachiyomi.extension.anime.util.AnimeExtensionInstaller
 import eu.kanade.tachiyomi.extension.anime.util.AnimeExtensionLoader
+import eu.kanade.tachiyomi.util.SourceMirrorSetup
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -158,6 +159,14 @@ class AnimeExtensionManager(
         availableExtensionsMapFlow.value = extensions.associateBy { it.pkgName }
         updatedInstalledAnimeExtensionsStatuses(extensions)
         setupAvailableAnimeExtensionsSourcesDataMap(extensions)
+
+        // Register the mirrors of the extensions, so a request can be moved to a working one
+        // when the primary domain stopped serving the api
+        SourceMirrorSetup.registerMirrors(
+            extensions.flatMap { extension ->
+                extension.sources.map { source -> source.baseUrl to source.mirrorUrls }
+            },
+        )
     }
 
     /**
