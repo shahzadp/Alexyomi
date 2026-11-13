@@ -166,7 +166,14 @@ private fun MalEntryChoiceRow(
                 )
             }
         }
-        if (item.onYourList) {
+        if (item.linked) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(AYMR.strings.mal_linked_entry),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else if (item.onYourList) {
             Spacer(Modifier.width(8.dp))
             Text(
                 text = stringResource(AYMR.strings.mal_on_your_list),

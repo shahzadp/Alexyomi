@@ -41,7 +41,6 @@ import eu.kanade.presentation.util.formatEpisodeNumber
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.FetchType
-import eu.kanade.tachiyomi.ui.mal.MalAnimeInfoScreen
 import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
 import eu.kanade.tachiyomi.ui.mal.MalEntryPickerScreen
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
@@ -156,21 +155,14 @@ class AnimeScreen(
                 if (resolvingMalEntry) return@AnimeScreen
                 resolvingMalEntry = true
                 scope.launch {
+                    // The app never picks the entry - the user always picks it here, so the
+                    // right entry is always the one that gets added.
                     when (val lookup = screenModel.lookupMalEntry()) {
-                        is MalEntryLookup.Found -> navigator.push(
-                            MalAnimeInfoScreen(
-                                anilistId = lookup.ids.anilistId,
-                                malId = lookup.ids.malId,
-                                fallbackTitle = successState.anime.title,
-                                openEditorOnStart = true,
-                                localAnimeId = successState.anime.id,
-                            ),
-                        )
-                        // The app can't tell the entries apart - the user picks the right one
-                        is MalEntryLookup.Uncertain -> navigator.push(
+                        is MalEntryLookup.Pick -> navigator.push(
                             MalEntryPickerScreen(
                                 title = successState.anime.title,
                                 localAnimeId = successState.anime.id,
+                                linkedMalId = lookup.linkedMalId,
                             ),
                         )
                         is MalEntryLookup.NotSignedIn -> context.openInBrowser(

@@ -30,24 +30,18 @@ Only the other direction is automatic: watching an episode here updates the coun
 list entry the user picked. If the user wants the episodes they watched elsewhere ticked as
 well, they mark them in the app.
 
-## 3. The AniList ↔ MyAnimeList bridge misses niche anime
+## 3. The app never picks an entry on its own
 
-The bridge used to look the MAL id up through AniList only, which is why obscure and adult
-entries were never found: AniList knows fewer anime than MAL and its search skips adult
-content.
+The "Add to MAL" button never opens an entry on its own anymore. The title of an anime in an
+extension is not proof of anything - extensions carry other titles, decorations, and sometimes
+a completely different show than the one the user looked at. So every tap shows the picker
+(`MalEntryPickerScreen`), where the user picks the entry:
 
-It now walks several sources (`MalEntryResolver`):
+- the entry the app has linked before is shown first and marked **Linked** - a wrong link from
+  before this change is visible and can be changed to any entry on MyAnimeList
+- the entries of the list of the user come next and are marked **On your list**
+- everything else comes from MyAnimeList and AniList, ranked by the title and by the number of
+  episodes - the seasons of a show have nearly the same title but not the same episode count
 
-1. the tracker that is already linked to the anime
-2. the user's own MAL list — matched by an exact title comparison (`MalTitleMatcher`)
-3. AniList's search, whose romaji title bridges the language gap
-4. MyAnimeList's own search, which knows the entries AniList doesn't have
-
-The entry page also falls back to MyAnimeList for the details when AniList doesn't know the
-entry (`MalAnimeInfoScreenModel.loadDetails`).
-
-**Done:** the guesswork is gone. Only an entry whose title is exactly the title of the anime
-is opened on its own - including the romaji title of AniList, which is what the extensions
-usually show. Everything else opens the entry picker (`MalEntryPickerScreen`), where the
-entries of the list of the user, of MyAnimeList and of AniList are ranked - the number of
-episodes tells the seasons apart, and the entries that are already on the list are marked.
+The entry the user picks is the one that gets linked, so the progress of the app and the
+progress of the list are the same. Nothing else is opened, ever.

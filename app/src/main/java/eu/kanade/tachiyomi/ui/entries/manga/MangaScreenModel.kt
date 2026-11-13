@@ -38,9 +38,8 @@ import eu.kanade.tachiyomi.data.track.EnhancedMangaTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.MangaSource
-import eu.kanade.tachiyomi.ui.mal.MalEntryIds
 import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
-import eu.kanade.tachiyomi.ui.mal.MalEntryResolver
+import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -116,8 +115,6 @@ class MangaScreenModel(
     private val filterChaptersForDownload: FilterChaptersForDownload = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateScreenModel<MangaScreenModel.State>(State.Loading) {
-
-    private var cachedMalEntryIds: MalEntryIds? = null
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -903,25 +900,27 @@ class MangaScreenModel(
     }
 
     /**
-     * Looks the MyAnimeList entry of this manga up.
+     * The MyAnimeList entry the app has linked with this manga, if it has one.
      *
-     * When the app can't tell the entries apart, the user picks the entry - opening a wrong
-     * manga is worse than asking.
+     * The app never picks an entry on its own - the user always picks one in the picker. The
+     * link is only shown there, so a link that points at the wrong entry is visible and can
+     * be changed.
      */
     suspend fun lookupMalEntry(): MalEntryLookup {
-        cachedMalEntryIds?.let { return MalEntryLookup.Found(it) }
-        val manga = manga ?: return MalEntryLookup.Uncertain
+        val tracker = Injekt.get<TrackerManager>().myAnimeList
+        if (!tracker.isLoggedIn) return MalEntryLookup.NotSignedIn
+
+        val manga = manga ?: return MalEntryLookup.Pick(linkedMalId = null)
         val tracks = try {
             getTracks.await(manga.id)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${manga.title}" }
             emptyList()
         }
-        val lookup = MalEntryResolver.lookupManga(manga.id, manga.title, tracks)
-        if (lookup is MalEntryLookup.Found) {
-            cachedMalEntryIds = lookup.ids
-        }
-        return lookup
+        return MalEntryLookup.Pick(
+            linkedMalId = tracks.find { it.trackerId == MalProgressSync.MAL_TRACKER_ID }
+                ?.remoteId?.toInt(),
+        )
     }
 
     fun showCoverDialog() {

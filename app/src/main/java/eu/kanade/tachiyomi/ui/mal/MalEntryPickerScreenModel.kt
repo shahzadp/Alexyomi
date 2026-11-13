@@ -30,6 +30,8 @@ data class MalEntryChoice(
     val episodes: Int? = null,
     /** Whether the entry is already on the list of the user. */
     val onYourList: Boolean = false,
+    /** Whether the app has this entry linked with the anime. */
+    val linked: Boolean = false,
 )
 
 /**
@@ -43,6 +45,7 @@ class MalEntryPickerScreenModel(
     private val initialQuery: String,
     private val isManga: Boolean = false,
     private val localAnimeId: Long? = null,
+    private val linkedMalId: Int? = null,
     private val anilistApi: AnilistBrowseApi = AnilistBrowseApi(Injekt.get<NetworkHelper>().client),
     private val tracker: MyAnimeList = Injekt.get<TrackerManager>().myAnimeList,
     private val getEpisodes: GetEpisodesByAnimeId = Injekt.get(),
@@ -171,7 +174,33 @@ class MalEntryPickerScreenModel(
             }
         }
 
-        return rank(choices.values.toList(), query)
+        // The linked entry - it has to be visible even if the search doesn't find it,
+        // because it is the entry the app has chosen when it linked the anime before.
+        if (linkedMalId != null && choices[linkedMalId] == null) {
+            val cached = MalListStore.read(mediaType)?.firstOrNull { it.id.toInt() == linkedMalId }
+            choices[linkedMalId] = if (cached != null) {
+                MalEntryChoice(
+                    malId = linkedMalId,
+                    anilistId = null,
+                    title = cached.title,
+                    coverUrl = cached.coverUrl,
+                    format = cached.mediaType,
+                    episodes = cached.total,
+                    onYourList = true,
+                )
+            } else {
+                MalEntryChoice(malId = linkedMalId, anilistId = null, title = "MyAnimeList entry #$linkedMalId")
+            }
+        }
+
+        // Mark the entry the app has linked with the anime
+        val linkedChoices = if (linkedMalId != null) {
+            choices.mapValues { (key, choice) -> choice.copy(linked = key == linkedMalId) }
+        } else {
+            choices
+        }
+
+        return rank(linkedChoices.values.toList(), query)
     }
 
     /**
@@ -183,16 +212,17 @@ class MalEntryPickerScreenModel(
     /**
      * The order the entries are shown in.
      *
-     * The entries of the user's own list come first, then the ones whose title fits the
-     * anime, then the ones with the same number of episodes - the seasons of a show have
-     * nearly the same title, but not the same number of episodes.
+     * The linked entry comes first - it is what the app has chosen before - then the entries
+     * of the user's own list, then the ones with the same number of episodes. The seasons of a
+     * show have nearly the same title, but not the same number of episodes.
      */
     private suspend fun rank(choices: List<MalEntryChoice>, query: String): List<MalEntryChoice> {
         val localEpisodes = if (isManga) null else localEpisodeCount()
         return choices
             .map { choice -> choice to score(choice, query, localEpisodes) }
             .sortedWith(
-                compareByDescending<Pair<MalEntryChoice, Int>> { it.first.onYourList }
+                compareByDescending<Pair<MalEntryChoice, Int>> { it.first.linked }
+                    .thenByDescending { it.first.onYourList }
                     .thenByDescending { it.second }
                     .thenBy { it.first.title },
             )
