@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import logcat.LogPriority
 import eu.kanade.tachiyomi.network.NetworkHelper
 import tachiyomi.core.common.util.system.logcat
+import mihon.domain.source.interactor.UpdateAnimeFromRemote
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.entries.manga.repository.MangaRepository
 import tachiyomi.domain.items.chapter.interactor.GetChaptersByMangaId
@@ -57,6 +58,12 @@ object MalProgressSync {
     private val updateChapter: UpdateChapter = Injekt.get()
     private val animeRepository: AnimeRepository = Injekt.get()
     private val mangaRepository: MangaRepository = Injekt.get()
+    private val updateAnimeFromRemote: UpdateAnimeFromRemote = Injekt.get()
+
+    /**
+     * How many anime are fetched per run, so the sources are not hammered.
+     */
+    private const val MAX_FETCHES_PER_RUN = 15
     private val tracker: MyAnimeList = Injekt.get<TrackerManager>().myAnimeList
 
     /**
@@ -205,21 +212,7 @@ object MalProgressSync {
             // The best entry for every local anime. The titles of the extensions are usually
             // the romaji ones, so the AniList titles are used as well.
             val anilistTitles = anilistTitlesOf(entries.map { it.id.toInt() })
-            val bestEntryFor = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
-            for (entry in entries) {
-                val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
-                for ((animeId, animeTitle) in unlinkedAnime) {
-                    val score = maxOf(
-                        MalTitleMatcher.score(entry.title, animeTitle),
-                        MalTitleMatcher.score(romaji, animeTitle),
-                    )
-                    if (score < MalTitleMatcher.MIN_SCORE) continue
-                    val current = bestEntryFor[animeId]
-                    if (current == null || score > current.score) {
-                        bestEntryFor[animeId] = MalTitleMatcher.Match(entry, entry.title, score)
-                    }
-                }
-            }
+            val bestEntryFor = bestEntryForAnime(entries, unlinkedAnime, anilistTitles)
 
             for ((animeId, match) in bestEntryFor) {
                 if (animeId in linkedAnimeIds) continue
@@ -245,6 +238,62 @@ object MalProgressSync {
     }
 
     /**
+     * The entry of the list that fits the local anime the best.
+     *
+     * The local anime are indexed by their words, so only the ones that have a word in common
+     * with an entry are compared. Comparing every entry with every anime takes seconds when
+     * the list is big - and that freezes the app while the list is scrolled.
+     */
+    private fun bestEntryForAnime(
+        entries: List<MalListScreenModel.MalListEntry>,
+        local: List<Pair<Long, String>>,
+        anilistTitles: Map<Int, AnilistMediaStatus>,
+    ): Map<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>> {
+        if (entries.isEmpty() || local.isEmpty()) return emptyMap()
+
+        // The index of the local anime, by their words
+        val localTitles = local.map { MalTitleMatcher.normalized(it.second) }
+        val index = HashMap<String, MutableList<Int>>()
+        for (i in localTitles.indices) {
+            for (token in MalTitleMatcher.tokensNormalized(localTitles[i])) {
+                index.getOrPut(token) { mutableListOf() }.add(i)
+            }
+        }
+
+        val best = HashMap<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
+        for (entry in entries) {
+            val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
+            val entryTitle = MalTitleMatcher.normalized(entry.title)
+            val romajiTitle = MalTitleMatcher.normalized(romaji)
+
+            // The local anime that have a word in common with the entry
+            val candidates = LinkedHashSet<Int>()
+            for (token in MalTitleMatcher.tokensNormalized(entryTitle)) {
+                index[token]?.let(candidates::addAll)
+            }
+            if (romajiTitle.isNotEmpty()) {
+                for (token in MalTitleMatcher.tokensNormalized(romajiTitle)) {
+                    index[token]?.let(candidates::addAll)
+                }
+            }
+
+            for (i in candidates) {
+                val animeId = local[i].first
+                val score = maxOf(
+                    MalTitleMatcher.scoreNormalized(entryTitle, localTitles[i]),
+                    MalTitleMatcher.scoreNormalized(romajiTitle, localTitles[i]),
+                )
+                if (score < MalTitleMatcher.MIN_SCORE) continue
+                val current = best[animeId]
+                if (current == null || score > current.score) {
+                    best[animeId] = MalTitleMatcher.Match(entry, entry.title, score)
+                }
+            }
+        }
+        return best
+    }
+
+    /**
      * The local anime and their titles.
      */
     private suspend fun localAnimeTitles(): List<Pair<Long, String>> {
@@ -254,6 +303,54 @@ object MalProgressSync {
             logcat(LogPriority.ERROR, e) { "Failed to load the local anime" }
             emptyList()
         }
+    }
+
+    /**
+     * Fetches the episode list of the anime that are on the list but have no episodes yet.
+     *
+     * Without the episodes there is nothing to tick, so the anime is fetched from its source
+     * and the progress is applied afterwards.
+     */
+    suspend fun fetchMissingEpisodes() {
+        val tracks = animeTrackRepository.getAnimeTracksAsFlow().first()
+            .filter { it.trackerId == MAL_TRACKER_ID }
+        var fetched = 0
+
+        for (track in tracks) {
+            if (fetched >= MAX_FETCHES_PER_RUN) break
+            if (getEpisodes.await(track.animeId).isNotEmpty()) continue
+
+            val progress = progressOfAnime(track.remoteId) ?: continue
+            if (progress <= 0) continue
+
+            val anime = try {
+                animeRepository.getAnimeById(track.animeId)
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to load anime ${track.animeId}" }
+                null
+            } ?: continue
+
+            logEvent("Fetching the episodes of anime ${anime.id} ('${anime.title}')")
+            updateAnimeFromRemote.awaitEpisodesUpdate(anime, fetchEpisodes = true)
+            fetched++
+
+            applyAnimeProgress(anime.id, progress, isCompleted(track.remoteId))
+        }
+    }
+
+    /**
+     * Whether the entry of the list is on the list as completed.
+     */
+    private suspend fun isCompleted(malId: Long): Boolean {
+        val cached = MalListStore.read(MalListScreenModel.MediaType.ANIME)
+        cached?.firstOrNull { it.id == malId }?.let { entry ->
+            return entry.status.equals("completed", ignoreCase = true)
+        }
+        val mangaCache = MalListStore.read(MalListScreenModel.MediaType.MANGA)
+        mangaCache?.firstOrNull { it.id == malId }?.let { entry ->
+            return entry.status.equals("completed", ignoreCase = true)
+        }
+        return false
     }
 
     /**
@@ -303,21 +400,7 @@ object MalProgressSync {
             // The best entry for every local manga. The extensions usually show the romaji
             // title, so the AniList titles are used as well.
             val anilistTitles = anilistTitlesOf(entries.map { it.id.toInt() })
-            val bestEntryFor = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
-            for (entry in entries) {
-                val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
-                for ((mangaId, mangaTitle) in unlinkedManga) {
-                    val score = maxOf(
-                        MalTitleMatcher.score(entry.title, mangaTitle),
-                        MalTitleMatcher.score(romaji, mangaTitle),
-                    )
-                    if (score < MalTitleMatcher.MIN_SCORE) continue
-                    val current = bestEntryFor[mangaId]
-                    if (current == null || score > current.score) {
-                        bestEntryFor[mangaId] = MalTitleMatcher.Match(entry, entry.title, score)
-                    }
-                }
-            }
+            val bestEntryFor = bestEntryForAnime(entries, unlinkedManga, anilistTitles)
 
             for ((mangaId, match) in bestEntryFor) {
                 if (mangaId in linkedMangaIds) continue

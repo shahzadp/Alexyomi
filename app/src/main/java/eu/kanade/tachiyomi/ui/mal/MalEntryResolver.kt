@@ -22,6 +22,23 @@ data class MalEntryIds(
 )
 
 /**
+ * The result of a lookup.
+ *
+ * When the app can't tell the entries apart, it doesn't guess - the user picks the entry
+ * instead. Opening the wrong anime is worse than asking.
+ */
+sealed interface MalEntryLookup {
+    /** The entry was found and the app is sure about it. */
+    data class Found(val ids: MalEntryIds) : MalEntryLookup
+
+    /** Nothing fits the title, or several entries fit it equally well. */
+    data object Uncertain : MalEntryLookup
+
+    /** The user isn't signed in to MyAnimeList. */
+    data object NotSignedIn : MalEntryLookup
+}
+
+/**
  * Resolves the MyAnimeList/AniList ids of an entry so it can be added to (or updated on) the
  * user's MAL list.
  *
@@ -37,6 +54,14 @@ object MalEntryResolver {
 
     private const val MAL_TRACKER_ID = 1L
     private const val ANILIST_TRACKER_ID = 2L
+
+    /**
+     * How close a second entry has to be to the best one, before the app stops guessing.
+     *
+     * Two seasons of the same show have nearly the same title - when they are this close,
+     * the user has to pick the entry.
+     */
+    private const val AMBIGUITY_MARGIN = 10
 
     /**
      * A possible match, with the title it is known under.
@@ -77,11 +102,59 @@ object MalEntryResolver {
     }
 
     /**
+     * Looks the entry of an anime up, without guessing.
+     *
+     * Returns [MalEntryLookup.Uncertain] when nothing fits the title or when several entries
+     * fit it equally well - the caller then lets the user pick the entry.
+     */
+    suspend fun lookupAnime(
+        animeId: Long,
+        title: String,
+        tracks: List<AnimeTrack>,
+    ): MalEntryLookup {
+        val malId = tracks.find { it.trackerId == MAL_TRACKER_ID }?.remoteId?.toInt()
+        val anilistId = tracks.find { it.trackerId == ANILIST_TRACKER_ID }?.remoteId?.toInt()
+        if (malId != null || anilistId != null) {
+            return MalEntryLookup.Found(MalEntryIds(anilistId = anilistId, malId = malId))
+        }
+        if (!Injekt.get<TrackerManager>().myAnimeList.isLoggedIn) {
+            return MalEntryLookup.NotSignedIn
+        }
+        val ids = resolve(title, MalListScreenModel.MediaType.ANIME)
+            ?: return MalEntryLookup.Uncertain
+        return MalEntryLookup.Found(ids)
+    }
+
+    /**
+     * The same for a manga.
+     */
+    suspend fun lookupManga(
+        mangaId: Long,
+        title: String,
+        tracks: List<MangaTrack>,
+    ): MalEntryLookup {
+        val malId = tracks.find { it.trackerId == MAL_TRACKER_ID }?.remoteId?.toInt()
+        val anilistId = tracks.find { it.trackerId == ANILIST_TRACKER_ID }?.remoteId?.toInt()
+        if (malId != null || anilistId != null) {
+            return MalEntryLookup.Found(MalEntryIds(anilistId = anilistId, malId = malId))
+        }
+        if (!Injekt.get<TrackerManager>().myAnimeList.isLoggedIn) {
+            return MalEntryLookup.NotSignedIn
+        }
+        val ids = resolve(title, MalListScreenModel.MediaType.MANGA)
+            ?: return MalEntryLookup.Uncertain
+        return MalEntryLookup.Found(ids)
+    }
+
+    /**
      * Finds the MyAnimeList id of the entry with the given title.
      *
      * All the sources are scored against the title and the best one wins. The titles of the
      * extensions are usually the romaji ones, while MyAnimeList uses the english ones - the
      * romaji title of the AniList entry is what bridges that gap.
+     *
+     * Returns null when nothing fits the title well enough - the app must not open an entry
+     * that could be a completely different anime.
      */
     private suspend fun resolve(
         title: String,
@@ -108,31 +181,34 @@ object MalEntryResolver {
 
         // The best match wins. The user's list comes first, so it wins a tie - it knows which
         // version of a title the user actually has.
-        var best: Candidate? = null
-        var bestScore = 0
-        for (candidate in candidates) {
-            val score = candidate.scoreFor(title)
-            if (score > bestScore) {
-                bestScore = score
-                best = candidate
-            }
+        val scored = candidates
+            .map { it to it.scoreFor(title) }
+            .sortedByDescending { it.second }
+        val best = scored.firstOrNull()
+        if (best == null || best.second < MalTitleMatcher.MIN_SCORE) {
+            MalProgressSync.logEvent("No MyAnimeList match for '$title'")
+            return null
         }
 
-        // Nothing fits the title - the AniList search still knows the mapping
-        if (best == null || bestScore < MalTitleMatcher.MIN_SCORE) {
-            best = anilistResults.firstOrNull()
-            bestScore = 0
-            if (best == null) {
-                MalProgressSync.logEvent("No MyAnimeList match for '$title'")
+        // A second entry that scores nearly the same means the app can't tell them apart -
+        // the seasons of a show look almost the same. The user picks the entry then.
+        val second = scored.getOrNull(1)
+        if (second != null && second.second >= best.second - AMBIGUITY_MARGIN) {
+            val sameEntry = second.first.malId != null && second.first.malId == best.first.malId
+            if (!sameEntry) {
+                MalProgressSync.logEvent(
+                    "Ambiguous MyAnimeList match for '$title': '${best.first.title}' and " +
+                        "'${second.first.title}'",
+                )
                 return null
             }
         }
 
         MalProgressSync.logEvent(
-            "Matched '$title' with MyAnimeList entry ${best.malId} " +
-                "('${best.title}', score $bestScore)",
+            "Matched '$title' with MyAnimeList entry ${best.first.malId} " +
+                "('${best.first.title}', score ${best.second})",
         )
-        return MalEntryIds(anilistId = best.anilistId, malId = best.malId)
+        return MalEntryIds(anilistId = best.first.anilistId, malId = best.first.malId)
     }
 
     /**

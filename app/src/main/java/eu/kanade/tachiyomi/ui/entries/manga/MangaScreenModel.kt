@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.MangaSource
 import eu.kanade.tachiyomi.ui.mal.MalEntryIds
+import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
 import eu.kanade.tachiyomi.ui.mal.MalEntryResolver
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
@@ -936,6 +937,28 @@ class MangaScreenModel(
             cachedMalEntryIds = ids
         }
         return ids
+    }
+
+    /**
+     * Looks the MyAnimeList entry of this manga up.
+     *
+     * When the app can't tell the entries apart, the user picks the entry - opening a wrong
+     * manga is worse than asking.
+     */
+    suspend fun lookupMalEntry(): MalEntryLookup {
+        cachedMalEntryIds?.let { return MalEntryLookup.Found(it) }
+        val manga = manga ?: return MalEntryLookup.Uncertain
+        val tracks = try {
+            getTracks.await(manga.id)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${manga.title}" }
+            emptyList()
+        }
+        val lookup = MalEntryResolver.lookupManga(manga.id, manga.title, tracks)
+        if (lookup is MalEntryLookup.Found) {
+            cachedMalEntryIds = lookup.ids
+        }
+        return lookup
     }
 
     /**

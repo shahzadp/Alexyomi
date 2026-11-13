@@ -47,6 +47,7 @@ import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
 import eu.kanade.tachiyomi.ui.mal.MalProgressSync
+import eu.kanade.tachiyomi.ui.mal.MalSyncJob
 import eu.kanade.tachiyomi.util.applyDubPreferenceToAnimeSources
 import eu.kanade.tachiyomi.util.SourceMirrorSetup
 import eu.kanade.tachiyomi.util.storage.LegacyStorageMigration
@@ -138,10 +139,18 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             SourceMirrorSetup.refreshMirrors()
         }
 
-        // Tick the episodes that were watched on MyAnimeList, so they don't have to be marked
-        // a second time. Uses the cached list, so no network is needed here.
+        // Keep the watched episodes in sync with MyAnimeList. It runs in the background, so the
+        // list of the user is not fetched while it is opened.
         scope.launch {
-            delay(3.seconds)
+            delay(10.seconds)
+            MalSyncJob.setupTask(applicationContext)
+        }
+
+        // Tick the episodes that were watched on MyAnimeList, so they don't have to be marked
+        // a second time. Uses the cached list, so no network is needed here. It waits a bit,
+        // so it doesn't compete with the app while it is opened.
+        scope.launch {
+            delay(20.seconds)
             if (!Injekt.get<TrackerManager>().myAnimeList.isLoggedIn) return@launch
             MalListStore.read(MalListScreenModel.MediaType.ANIME)?.let {
                 MalProgressSync.applyListProgress(it)
@@ -149,6 +158,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             MalListStore.read(MalListScreenModel.MediaType.MANGA)?.let {
                 MalProgressSync.applyMangaListProgress(it)
             }
+
+            // The anime that were never opened have no episodes yet - without them there is
+            // nothing to tick.
+            MalProgressSync.fetchMissingEpisodes()
         }
 
         // Show notification to disable Incognito Mode when it's enabled

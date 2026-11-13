@@ -107,7 +107,7 @@ data object MalTab : Tab {
             content = { _, snackbarHostState ->
                 PullToRefreshBox(
                     isRefreshing = state.loading && state.entries.isNotEmpty(),
-                    onRefresh = { screenModel.load() },
+                    onRefresh = { screenModel.refresh() },
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     MalMyListScreen(

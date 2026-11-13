@@ -27,6 +27,49 @@ class MalTitleMatcherTest {
     }
 
     @Test
+    fun `a different season number does not match`() {
+        val score = MalTitleMatcher.score("One Piece 3rd Season", "One Piece Season 4")
+        assertTrue(score < MalTitleMatcher.MIN_SCORE) { "score was $score" }
+    }
+
+    @Test
+    fun `a different season number does not match the other way round`() {
+        val score = MalTitleMatcher.score("One Piece Season 6", "One Piece 3rd Season")
+        assertTrue(score < MalTitleMatcher.MIN_SCORE) { "score was $score" }
+    }
+
+    @Test
+    fun `the same season number matches`() {
+        val score = MalTitleMatcher.score("One Piece Season 3", "One Piece 3rd Season")
+        assertTrue(score >= 100) { "score was $score" }
+    }
+
+    @Test
+    fun `a different part does not match`() {
+        val score = MalTitleMatcher.score("Re:Zero Part 2", "Re:Zero Part 3")
+        assertTrue(score < MalTitleMatcher.MIN_SCORE) { "score was $score" }
+    }
+
+    @Test
+    fun `a different volume does not match`() {
+        val score = MalTitleMatcher.score("Berserk Volume 5", "Berserk Volume 3")
+        assertTrue(score < MalTitleMatcher.MIN_SCORE) { "score was $score" }
+    }
+
+    @Test
+    fun `the right season wins over the wrong ones`() {
+        val local = listOf(
+            1L to "One Piece Season 4",
+            2L to "One Piece Season 6",
+            3L to "One Piece Season 3",
+        )
+
+        val match = MalTitleMatcher.bestMatch("One Piece 3rd Season", local)
+        assertTrue(match != null)
+        assertTrue(match!!.item == 3L) { "matched ${match.item} ('${match.title}')" }
+    }
+
+    @Test
     fun `a different season does not win over the right one`() {
         val local = listOf(
             1L to "Oshi no Ko",
@@ -63,5 +106,12 @@ class MalTitleMatcherTest {
     fun `the romaji title of an english one matches`() {
         val score = MalTitleMatcher.score("Shingeki no Kyojin", "Shingeki no Kyojin")
         assertTrue(score >= 100) { "score was $score" }
+    }
+
+    @Test
+    fun `the words of a title are found`() {
+        val tokens = MalTitleMatcher.tokens("Frieren: Beyond Journey's End")
+        assertTrue(tokens.contains("frieren")) { "tokens were $tokens" }
+        assertTrue(tokens.contains("beyond")) { "tokens were $tokens" }
     }
 }

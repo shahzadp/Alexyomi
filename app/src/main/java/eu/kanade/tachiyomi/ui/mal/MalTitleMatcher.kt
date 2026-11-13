@@ -31,9 +31,24 @@ object MalTitleMatcher {
      */
     private val STOP_WORDS = setOf(
         "the", "and", "for", "with", "of", "a", "an", "to", "in", "on", "at", "no", "tv",
-        "movie", "series", "season", "part", "second", "third", "new", "final", "OVA", "ONA",
-        "dub", "sub", "english", "japanese", "episode", "episodes",
+        "movie", "series", "season", "part", "second", "third", "new", "final", "ova", "ona",
+        "dub", "sub", "english", "japanese", "episode", "episodes", "first", "fourth", "fifth",
     )
+
+    /**
+     * "3rd season", "2nd part", "volume 5"
+     */
+    private val SEASON_BEFORE = Regex("(\\d+)\\s*(?:st|nd|rd|th)?\\s*(?:season|part|volume|vol)")
+
+    /**
+     * "season 3", "part 2", "vol 5"
+     */
+    private val SEASON_AFTER = Regex("(?:season|part|volume|vol)\\s*(\\d+)")
+
+    /**
+     * More than one space in a row.
+     */
+    private val WHITESPACE = Regex("\\s+")
 
     /**
      * Minimum score for a title to be considered the same anime.
@@ -57,10 +72,34 @@ object MalTitleMatcher {
     /**
      * Score of [query] against [candidate]. Zero means they don't look alike at all.
      */
-    fun score(query: String, candidate: String): Int {
-        val a = normalize(query)
-        val b = normalize(candidate)
+    fun score(query: String, candidate: String): Int =
+        scoreNormalized(normalize(query), normalize(candidate))
+
+    /**
+     * The score of two titles that are already normalized.
+     *
+     * The list of the user can have thousands of entries, so the titles are normalized only
+     * once and compared with this.
+     */
+    fun scoreNormalized(a: String, b: String): Int {
         if (a.isEmpty() || b.isEmpty()) return 0
+
+        // The seasons of a show are different entries, even when the titles are nearly the
+        // same - "X 3rd Season" is not "X Season 4".
+        val seasonA = seasonNumber(a)
+        val seasonB = seasonNumber(b)
+        if (seasonA != null && seasonB != null) {
+            if (seasonA != seasonB) {
+                return SCORE_DIFFERENT_SEASON
+            }
+            // The same season, spelled differently - "One Piece Season 3" and
+            // "One Piece 3rd Season" are the same entry.
+            val base = withoutSeason(a)
+            if (base.isNotEmpty() && base == withoutSeason(b)) {
+                return SCORE_EXACT
+            }
+        }
+
         if (a == b) return SCORE_EXACT
         if (b.startsWith(a)) return prefixScore(a, b)
         if (a.startsWith(b)) return prefixScore(b, a)
@@ -86,6 +125,45 @@ object MalTitleMatcher {
 
         return score
     }
+
+    /**
+     * The number of the season of a title, when it has one.
+     *
+     * Understands "3rd Season", "Season 3", "Part 2" and "Volume 5".
+     */
+    private fun seasonNumber(title: String): Int? {
+        SEASON_BEFORE.find(title)?.let { return it.groupValues[1].toIntOrNull() }
+        SEASON_AFTER.find(title)?.let { return it.groupValues[1].toIntOrNull() }
+        return null
+    }
+
+    /**
+     * The title without the season it mentions.
+     *
+     * "One Piece 3rd Season" becomes "One Piece" - what is left has to be the same for two
+     * titles of the same season.
+     */
+    private fun withoutSeason(title: String): String {
+        val match = SEASON_BEFORE.find(title) ?: SEASON_AFTER.find(title) ?: return title
+        return title.removeRange(match.range)
+            .replace(WHITESPACE, " ")
+            .trim()
+    }
+
+    /**
+     * The words of a title, lower case and without punctuation.
+     *
+     * Used to find the candidates that are worth comparing - comparing every title with
+     * every other one is far too slow when the list of the user is big.
+     */
+    fun tokens(title: String): Set<String> =
+        normalize(title).split(' ').filter { it.length > 1 }.toSet()
+
+    /**
+     * The words of a title that is already normalized.
+     */
+    fun tokensNormalized(title: String): Set<String> =
+        title.split(' ').filter { it.length > 1 }.toSet()
 
     /**
      * The score of a title that starts with the other one.
@@ -127,6 +205,11 @@ object MalTitleMatcher {
 
     private fun isDistinctive(token: String): Boolean =
         token.length >= MIN_DISTINCTIVE_TOKEN_LENGTH && token !in STOP_WORDS
+
+    /**
+     * Lower case, without punctuation and with collapsed spaces.
+     */
+    fun normalized(title: String): String = normalize(title)
 
     /**
      * Lower case, without punctuation and with collapsed spaces.

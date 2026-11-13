@@ -49,6 +49,10 @@ import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.ui.mal.MalMangaInfoScreen
+import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
+import eu.kanade.tachiyomi.ui.mal.MalEntryPickerScreen
+import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
+import eu.kanade.tachiyomi.util.system.openInBrowser
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
@@ -134,21 +138,29 @@ class MangaScreen(
                 if (resolvingMalEntry) return@MangaScreen
                 resolvingMalEntry = true
                 scope.launch {
-                    val ids = screenModel.resolveMalEntryIds()
-                    resolvingMalEntry = false
-                    if (ids != null) {
-                        navigator.push(
+                    when (val lookup = screenModel.lookupMalEntry()) {
+                        is MalEntryLookup.Found -> navigator.push(
                             MalMangaInfoScreen(
-                                anilistId = ids.anilistId,
-                                malId = ids.malId,
+                                anilistId = lookup.ids.anilistId,
+                                malId = lookup.ids.malId,
                                 fallbackTitle = successState.manga.title,
                                 openEditorOnStart = true,
                                 localMangaId = successState.manga.id,
                             ),
                         )
-                    } else {
-                        context.toast(context.stringResource(AYMR.strings.mal_add_to_list_not_found))
+                        // The app can't tell the entries apart - the user picks the right one
+                        is MalEntryLookup.Uncertain -> navigator.push(
+                            MalEntryPickerScreen(
+                                title = successState.manga.title,
+                                localMangaId = successState.manga.id,
+                            ),
+                        )
+                        is MalEntryLookup.NotSignedIn -> context.openInBrowser(
+                            MyAnimeListApi.authUrl(),
+                            forceDefaultBrowser = true,
+                        )
                     }
+                    resolvingMalEntry = false
                 }
             },
             onTagSearch = { scope.launch { performGenreSearch(navigator, it, screenModel.source!!) } },

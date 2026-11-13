@@ -42,6 +42,10 @@ import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.ui.mal.MalAnimeInfoScreen
+import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
+import eu.kanade.tachiyomi.ui.mal.MalEntryPickerScreen
+import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
+import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.source.anime.isLocalOrStub
 import eu.kanade.tachiyomi.ui.browse.anime.source.browse.BrowseAnimeSourceScreen
@@ -152,21 +156,29 @@ class AnimeScreen(
                 if (resolvingMalEntry) return@AnimeScreen
                 resolvingMalEntry = true
                 scope.launch {
-                    val ids = screenModel.resolveMalEntryIds()
-                    resolvingMalEntry = false
-                    if (ids != null) {
-                        navigator.push(
+                    when (val lookup = screenModel.lookupMalEntry()) {
+                        is MalEntryLookup.Found -> navigator.push(
                             MalAnimeInfoScreen(
-                                anilistId = ids.anilistId,
-                                malId = ids.malId,
+                                anilistId = lookup.ids.anilistId,
+                                malId = lookup.ids.malId,
                                 fallbackTitle = successState.anime.title,
                                 openEditorOnStart = true,
                                 localAnimeId = successState.anime.id,
                             ),
                         )
-                    } else {
-                        context.toast(context.stringResource(AYMR.strings.mal_add_to_list_not_found))
+                        // The app can't tell the entries apart - the user picks the right one
+                        is MalEntryLookup.Uncertain -> navigator.push(
+                            MalEntryPickerScreen(
+                                title = successState.anime.title,
+                                localAnimeId = successState.anime.id,
+                            ),
+                        )
+                        is MalEntryLookup.NotSignedIn -> context.openInBrowser(
+                            MyAnimeListApi.authUrl(),
+                            forceDefaultBrowser = true,
+                        )
                     }
+                    resolvingMalEntry = false
                 }
             },
             onTagSearch = { scope.launch { performGenreSearch(navigator, it, screenModel.source!!) } },
