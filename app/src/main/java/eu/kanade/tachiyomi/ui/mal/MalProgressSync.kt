@@ -73,6 +73,7 @@ object MalProgressSync {
         skipStatusLookup: Boolean = false,
         statusId: Long? = null,
         totalEpisodes: Long = 0L,
+        markAll: Boolean = false,
     ) {
         try {
             val status = if (skipStatusLookup) null else tracker.findListStatus(malId)
@@ -98,8 +99,11 @@ object MalProgressSync {
             )
             logEvent("Linked anime $animeId with MyAnimeList entry $malId")
 
-            // The episodes that were already watched on the list are ticked right away
-            applyAnimeProgress(animeId, episodesWatched)
+            // The episodes that were already watched on the list are ticked right away. An entry
+            // that is completed means that every episode is watched, even when the count of the
+            // list is behind.
+            val completed = markAll || status?.status.equals("completed", ignoreCase = true) == true
+            applyAnimeProgress(animeId, episodesWatched, completed)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to link anime $animeId with MyAnimeList" }
         }
@@ -115,6 +119,7 @@ object MalProgressSync {
         chaptersRead: Int,
         skipStatusLookup: Boolean = false,
         statusId: Long? = null,
+        markAll: Boolean = false,
     ) {
         try {
             val status = if (skipStatusLookup) null else tracker.findMangaListStatus(malId)
@@ -140,7 +145,11 @@ object MalProgressSync {
             )
             logEvent("Linked manga $mangaId with MyAnimeList entry $malId")
 
-            applyMangaProgress(mangaId, chaptersRead)
+            // The chapters that were already read on the list are ticked right away. An entry
+            // that is completed means that every chapter is read, even when the count of the
+            // list is behind.
+            val completed = markAll || status?.status.equals("completed", ignoreCase = true) == true
+            applyMangaProgress(mangaId, chaptersRead, completed)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to link manga $mangaId with MyAnimeList" }
         }
@@ -175,9 +184,12 @@ object MalProgressSync {
             // them gets the progress.
             for (entry in entries) {
                 val linked = tracksByRemoteId[entry.id] ?: continue
+                // A completed entry means every episode is watched, even when the count of the
+                // list is behind.
+                val markAll = entry.status.equals("completed", ignoreCase = true)
                 for (track in linked) {
-                    if (entry.progress > track.lastEpisodeSeen) {
-                        applyAnimeProgress(track.animeId, entry.progress)
+                    if (markAll || entry.progress > track.lastEpisodeSeen) {
+                        applyAnimeProgress(track.animeId, entry.progress, markAll)
                     }
                 }
             }
@@ -271,9 +283,12 @@ object MalProgressSync {
             val tracksByRemoteId = tracks.groupBy { it.remoteId }
             for (entry in entries) {
                 val linked = tracksByRemoteId[entry.id] ?: continue
+                // A completed entry means every chapter is read, even when the count of the
+                // list is behind.
+                val markAll = entry.status.equals("completed", ignoreCase = true)
                 for (track in linked) {
-                    if (entry.progress > track.lastChapterRead) {
-                        applyMangaProgress(track.mangaId, entry.progress)
+                    if (markAll || entry.progress > track.lastChapterRead) {
+                        applyMangaProgress(track.mangaId, entry.progress, markAll)
                     }
                 }
             }
@@ -345,18 +360,18 @@ object MalProgressSync {
      *
      * @return the progress that was applied, or null when it is unknown
      */
-    suspend fun applyProgressForAnime(animeId: Long, malId: Long): Int? {
+    suspend fun applyProgressForAnime(animeId: Long, malId: Long, markAll: Boolean = false): Int? {
         val progress = progressOfAnime(malId) ?: return null
-        applyAnimeProgress(animeId, progress)
+        applyAnimeProgress(animeId, progress, markAll)
         return progress
     }
 
     /**
      * Applies the progress of the MyAnimeList entry of the manga to the local chapters.
      */
-    suspend fun applyProgressForManga(mangaId: Long, malId: Long): Int? {
+    suspend fun applyProgressForManga(mangaId: Long, malId: Long, markAll: Boolean = false): Int? {
         val progress = progressOfManga(malId) ?: return null
-        applyMangaProgress(mangaId, progress)
+        applyMangaProgress(mangaId, progress, markAll)
         return progress
     }
 
@@ -395,22 +410,36 @@ object MalProgressSync {
     /**
      * Marks every episode up to [progress] of the anime as watched.
      */
-    suspend fun applyAnimeProgress(animeId: Long, progress: Int) {
-        if (progress <= 0) return
+    /**
+     * Marks the watched episodes of the anime.
+     *
+     * @param progress how many episodes are watched
+     * @param markAll whether every episode is watched - the entry is on the list as completed,
+     * so the count of the list can be behind
+     */
+    suspend fun applyAnimeProgress(animeId: Long, progress: Int, markAll: Boolean = false) {
+        if (progress <= 0 && !markAll) return
         val episodes = getEpisodes.await(animeId)
         if (episodes.isEmpty()) {
             logEvent("Anime $animeId has no episodes yet, $progress could not be ticked")
             return
         }
 
-        // The episodes that are within the progress
-        var toUpdate = episodes.filter { !it.seen && it.episodeNumber >= 1.0 && it.episodeNumber <= progress }
+        val ordered = episodes.sortedBy { it.episodeNumber }
 
-        // Extensions that number their episodes differently (offset or absolute numbering) don't
-        // line up with the count of the list, so the first episodes are taken in that case.
-        if (toUpdate.size < progress) {
-            val ordered = episodes.sortedBy { it.episodeNumber }
-            toUpdate = ordered.take(progress).filter { !it.seen }
+        val toUpdate = if (markAll) {
+            // The entry is completed, so every episode of the anime is watched
+            ordered.filter { !it.seen }
+        } else {
+            // The episodes that are within the progress
+            val inRange = ordered.filter { !it.seen && it.episodeNumber >= 1.0 && it.episodeNumber <= progress }
+            if (inRange.size >= progress) {
+                inRange
+            } else {
+                // Extensions that number their episodes differently (offset or absolute numbering)
+                // don't line up with the count of the list, so the first episodes are taken.
+                ordered.take(progress.coerceAtMost(ordered.size)).filter { !it.seen }
+            }
         }
 
         if (toUpdate.isEmpty()) return
@@ -422,22 +451,36 @@ object MalProgressSync {
     /**
      * Marks every chapter up to [progress] of the manga as read.
      */
-    suspend fun applyMangaProgress(mangaId: Long, progress: Int) {
-        if (progress <= 0) return
+    /**
+     * Marks the read chapters of the manga.
+     *
+     * @param progress how many chapters are read
+     * @param markAll whether every chapter is read - the entry is on the list as completed,
+     * so the count of the list can be behind
+     */
+    suspend fun applyMangaProgress(mangaId: Long, progress: Int, markAll: Boolean = false) {
+        if (progress <= 0 && !markAll) return
         val chapters = getChapters.await(mangaId)
         if (chapters.isEmpty()) {
             logEvent("Manga $mangaId has no chapters yet, $progress could not be ticked")
             return
         }
 
-        // The chapters that are within the progress
-        var toUpdate = chapters.filter { !it.read && it.chapterNumber >= 1.0 && it.chapterNumber <= progress }
+        val ordered = chapters.sortedBy { it.chapterNumber }
 
-        // Extensions that number their chapters differently don't line up with the count of the
-        // list, so the first chapters are taken in that case.
-        if (toUpdate.size < progress) {
-            val ordered = chapters.sortedBy { it.chapterNumber }
-            toUpdate = ordered.take(progress).filter { !it.read }
+        val toUpdate = if (markAll) {
+            // The entry is completed, so every chapter of the manga is read
+            ordered.filter { !it.read }
+        } else {
+            // The chapters that are within the progress
+            val inRange = ordered.filter { !it.read && it.chapterNumber >= 1.0 && it.chapterNumber <= progress }
+            if (inRange.size >= progress) {
+                inRange
+            } else {
+                // Extensions that number their chapters differently don't line up with the count
+                // of the list, so the first chapters are taken.
+                ordered.take(progress.coerceAtMost(ordered.size)).filter { !it.read }
+            }
         }
 
         if (toUpdate.isEmpty()) return

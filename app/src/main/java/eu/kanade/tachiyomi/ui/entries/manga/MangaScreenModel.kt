@@ -36,6 +36,7 @@ import eu.kanade.tachiyomi.data.download.manga.MangaDownloadManager
 import eu.kanade.tachiyomi.data.download.manga.model.MangaDownload
 import eu.kanade.tachiyomi.data.track.EnhancedMangaTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.MangaSource
 import eu.kanade.tachiyomi.ui.mal.MalEntryIds
@@ -966,7 +967,8 @@ class MangaScreenModel(
 
         // Apply the progress of the entry that is linked already
         val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID } ?: return
-        val progress = MalProgressSync.applyProgressForManga(manga.id, track.remoteId)
+        val markAll = track.status == MyAnimeList.COMPLETED
+        val progress = MalProgressSync.applyProgressForManga(manga.id, track.remoteId, markAll)
         if (progress != null) {
             MalProgressSync.logEvent("Applied MAL progress $progress to manga ${manga.id}")
         }
