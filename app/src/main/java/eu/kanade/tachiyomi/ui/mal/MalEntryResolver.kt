@@ -79,9 +79,9 @@ object MalEntryResolver {
     /**
      * Finds the MyAnimeList id of the entry with the given title.
      *
-     * The user's own list comes first: it is exactly what they are looking at, and it tells
-     * the versions apart that share a title (a new and an old one). AniList knows the mapping
-     * between both and is the fallback for the entries that are not on the list yet.
+     * All the sources are scored against the title and the best one wins. The titles of the
+     * extensions are usually the romaji ones, while MyAnimeList uses the english ones - the
+     * romaji title of the AniList entry is what bridges that gap.
      */
     private suspend fun resolve(
         title: String,
@@ -89,47 +89,50 @@ object MalEntryResolver {
     ): MalEntryIds? {
         if (title.isBlank()) return null
 
-        // The user's own list
+        val candidates = mutableListOf<Candidate>()
+
+        // The user's own list - it is exactly what they are looking at
         val cached = MalListStore.read(mediaType)
-        val listMatch = cached?.let {
-            MalTitleMatcher.bestMatch(title, it.map { entry -> entry.id.toInt() to entry.title })
-        }
-        if (listMatch != null) {
-            MalProgressSync.logEvent(
-                "Matched '$title' with MyAnimeList entry ${listMatch.item} " +
-                    "from the list ('${listMatch.title}', score ${listMatch.score})",
-            )
-            return MalEntryIds(anilistId = null, malId = listMatch.item)
+        cached?.forEach { entry ->
+            candidates += Candidate(malId = entry.id.toInt(), anilistId = null, title = entry.title)
         }
 
-        // AniList knows the mapping between both. Its search is ranked well, so a hit that
-        // fits the title wins - and the first hit is the fallback, because the extensions
-        // often show the romaji title while AniList answers with the english one.
+        // AniList knows the mapping between both
         val anilistResults = searchByAnilist(title)
-        val anilistMatch = anilistResults
-            .firstOrNull { it.scoreFor(title) >= MalTitleMatcher.MIN_SCORE }
-            ?: anilistResults.firstOrNull()
-        if (anilistMatch != null) {
-            MalProgressSync.logEvent(
-                "Matched '$title' with MyAnimeList entry ${anilistMatch.malId} " +
-                    "via AniList ('${anilistMatch.title}')",
-            )
-            return MalEntryIds(anilistId = anilistMatch.anilistId, malId = anilistMatch.malId)
-        }
+        candidates += anilistResults
 
         // MyAnimeList knows the entries AniList doesn't have
-        val malResults = searchByMal(title, mediaType)
-        val malMatch = MalTitleMatcher.bestMatch(title, malResults)
-        if (malMatch != null) {
-            MalProgressSync.logEvent(
-                "Matched '$title' with MyAnimeList entry ${malMatch.item} " +
-                    "via MyAnimeList ('${malMatch.title}', score ${malMatch.score})",
-            )
-            return MalEntryIds(anilistId = null, malId = malMatch.item)
+        searchByMal(title, mediaType)?.forEach { (id, entryTitle) ->
+            candidates += Candidate(malId = id, anilistId = null, title = entryTitle)
         }
 
-        MalProgressSync.logEvent("No MyAnimeList match for '$title'")
-        return null
+        // The best match wins. The user's list comes first, so it wins a tie - it knows which
+        // version of a title the user actually has.
+        var best: Candidate? = null
+        var bestScore = 0
+        for (candidate in candidates) {
+            val score = candidate.scoreFor(title)
+            if (score > bestScore) {
+                bestScore = score
+                best = candidate
+            }
+        }
+
+        // Nothing fits the title - the AniList search still knows the mapping
+        if (best == null || bestScore < MalTitleMatcher.MIN_SCORE) {
+            best = anilistResults.firstOrNull()
+            bestScore = 0
+            if (best == null) {
+                MalProgressSync.logEvent("No MyAnimeList match for '$title'")
+                return null
+            }
+        }
+
+        MalProgressSync.logEvent(
+            "Matched '$title' with MyAnimeList entry ${best.malId} " +
+                "('${best.title}', score $bestScore)",
+        )
+        return MalEntryIds(anilistId = best.anilistId, malId = best.malId)
     }
 
     /**

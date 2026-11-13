@@ -167,14 +167,18 @@ object MalProgressSync {
         try {
             val tracks = animeTrackRepository.getAnimeTracksAsFlow().first()
                 .filter { it.trackerId == MAL_TRACKER_ID }
-            val tracksByRemoteId = tracks.associateBy { it.remoteId }
+            val tracksByRemoteId = tracks.groupBy { it.remoteId }
             val linkedAnimeIds = tracks.map { it.animeId }.toSet()
 
-            // Apply the progress of the entries that are linked already
+            // Apply the progress of the entries that are linked already. The same anime can be
+            // in several extensions, so an entry can have more than one link - every one of
+            // them gets the progress.
             for (entry in entries) {
-                val track = tracksByRemoteId[entry.id] ?: continue
-                if (entry.progress > track.lastEpisodeSeen) {
-                    applyAnimeProgress(track.animeId, entry.progress)
+                val linked = tracksByRemoteId[entry.id] ?: continue
+                for (track in linked) {
+                    if (entry.progress > track.lastEpisodeSeen) {
+                        applyAnimeProgress(track.animeId, entry.progress)
+                    }
                 }
             }
 
@@ -254,10 +258,6 @@ object MalProgressSync {
 
     /**
      * Applies the progress of the user's manga list to the local chapters of the linked
-     * mangas, and links the ones that are not linked yet.
-     */
-    /**
-     * Applies the progress of the user's manga list to the local chapters of the linked
      * mangas, and links the mangas that are not linked yet.
      */
     suspend fun applyMangaListProgress(entries: List<MalListScreenModel.MalListEntry>) {
@@ -265,13 +265,15 @@ object MalProgressSync {
         try {
             val tracks = mangaTrackRepository.getMangaTracksAsFlow().first()
                 .filter { it.trackerId == MAL_TRACKER_ID }
-            val tracksByRemoteId = tracks.associateBy { it.remoteId }
             val linkedMangaIds = tracks.map { it.mangaId }.toSet()
 
+            val tracksByRemoteId = tracks.groupBy { it.remoteId }
             for (entry in entries) {
-                val track = tracksByRemoteId[entry.id] ?: continue
-                if (entry.progress > track.lastChapterRead) {
-                    applyMangaProgress(track.mangaId, entry.progress)
+                val linked = tracksByRemoteId[entry.id] ?: continue
+                for (track in linked) {
+                    if (entry.progress > track.lastChapterRead) {
+                        applyMangaProgress(track.mangaId, entry.progress)
+                    }
                 }
             }
 
@@ -396,9 +398,16 @@ object MalProgressSync {
         val episodes = getEpisodes.await(animeId)
         if (episodes.isEmpty()) return
 
-        val toUpdate = episodes.filter { episode ->
-            !episode.seen && episode.episodeNumber >= 1.0 && episode.episodeNumber <= progress
+        // The episodes that are within the progress
+        var toUpdate = episodes.filter { !it.seen && it.episodeNumber >= 1.0 && it.episodeNumber <= progress }
+
+        // Extensions that number their episodes differently (offset or absolute numbering) don't
+        // line up with the count of the list, so the first episodes are taken in that case.
+        if (toUpdate.size < progress) {
+            val ordered = episodes.sortedBy { it.episodeNumber }
+            toUpdate = ordered.take(progress).filter { !it.seen }
         }
+
         if (toUpdate.isEmpty()) return
 
         updateEpisode.awaitAll(toUpdate.map { EpisodeUpdate(id = it.id, seen = true) })
@@ -413,9 +422,16 @@ object MalProgressSync {
         val chapters = getChapters.await(mangaId)
         if (chapters.isEmpty()) return
 
-        val toUpdate = chapters.filter { chapter ->
-            !chapter.read && chapter.chapterNumber >= 1.0 && chapter.chapterNumber <= progress
+        // The chapters that are within the progress
+        var toUpdate = chapters.filter { !it.read && it.chapterNumber >= 1.0 && it.chapterNumber <= progress }
+
+        // Extensions that number their chapters differently don't line up with the count of the
+        // list, so the first chapters are taken in that case.
+        if (toUpdate.size < progress) {
+            val ordered = chapters.sortedBy { it.chapterNumber }
+            toUpdate = ordered.take(progress).filter { !it.read }
         }
+
         if (toUpdate.isEmpty()) return
 
         updateChapter.awaitAll(toUpdate.map { ChapterUpdate(id = it.id, read = true) })

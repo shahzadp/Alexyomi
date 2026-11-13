@@ -31,14 +31,14 @@ class AnilistBrowseApi(
 
     private val json: Json by injectLazy()
 
-    suspend fun searchAnime(query: String, page: Int = 1): AnilistBrowsePage {
+    suspend fun searchAnime(query: String, page: Int = 1, includeAdult: Boolean = false): AnilistBrowsePage {
         val payload = buildPayload(
             "Search",
             """
             query Search(${'$'}search: String, ${'$'}page: Int) {
               Page(perPage: $PAGE_SIZE, page: ${'$'}page) {
                 pageInfo { hasNextPage }
-                media(type: ANIME, search: ${'$'}search, isAdult: false, sort: SEARCH_MATCH) {
+                media(type: ANIME, search: ${'$'}search, isAdult: ${'$'}includeAdult, sort: SEARCH_MATCH) {
                   $MEDIA_FIELDS
                 }
               }
