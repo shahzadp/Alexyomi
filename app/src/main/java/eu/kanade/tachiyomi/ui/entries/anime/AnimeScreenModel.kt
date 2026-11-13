@@ -39,7 +39,9 @@ import eu.kanade.tachiyomi.data.download.anime.model.AnimeDownload
 import eu.kanade.tachiyomi.data.track.EnhancedAnimeTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.ui.entries.anime.track.AnimeTrackItem
+import eu.kanade.tachiyomi.ui.mal.MalEntryIds
 import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
+import eu.kanade.tachiyomi.ui.mal.MalEntryLinker
 import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
@@ -1349,11 +1351,11 @@ class AnimeScreenModel(
     }
 
     /**
-     * The MyAnimeList entry the app has linked with this anime, if it has one.
+     * The MyAnimeList entry of this anime, whenever the app is sure which one it is.
      *
-     * The app never picks an entry on its own - the user always picks one in the picker. The
-     * link is only shown there, so a link that points at the wrong entry is visible and can
-     * be changed.
+     * The app only opens an entry on its own when the local anime and the entry are the same
+     * anime - the same title letter for letter, the seasons included. A linked entry that
+     * doesn't pass that test is not opened - it goes to the picker with the link shown marked.
      */
     suspend fun lookupMalEntry(): MalEntryLookup {
         val tracker = Injekt.get<TrackerManager>().myAnimeList
@@ -1366,10 +1368,37 @@ class AnimeScreenModel(
             logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${anime.title}" }
             emptyList()
         }
-        return MalEntryLookup.Pick(
-            linkedMalId = tracks.find { it.trackerId == MalProgressSync.MAL_TRACKER_ID }
-                ?.remoteId?.toInt(),
-        )
+
+        val malId = tracks.find { it.trackerId == MalProgressSync.MAL_TRACKER_ID }?.remoteId?.toInt()
+        val anilistId = tracks.find { it.trackerId == MalProgressSync.ANILIST_TRACKER_ID }?.remoteId?.toInt()
+
+        // A linked entry is only used when it matches the anime letter for letter
+        if (MalEntryLinker.linkedEntryMatches(
+                anime.title,
+                malId,
+                anilistId,
+                MalListScreenModel.MediaType.ANIME,
+            )
+        ) {
+            return MalEntryLookup.Found(MalEntryIds(anilistId = anilistId, malId = malId))
+        }
+
+        // No trusted link - one letter for letter match may be linked on its own
+        val exact = MalEntryLinker.findExact(anime.title, MalListScreenModel.MediaType.ANIME)
+        if (exact != null) {
+            MalProgressSync.linkAnime(
+                animeId = anime.id,
+                animeTitle = anime.title,
+                malId = exact.malId,
+                episodesWatched = exact.episodesWatched,
+                skipStatusLookup = true,
+                statusId = exact.statusId,
+                totalEpisodes = exact.totalEpisodes,
+            )
+            return MalEntryLookup.Found(MalEntryIds(anilistId = anilistId, malId = exact.malId))
+        }
+
+        return MalEntryLookup.Pick(linkedMalId = malId)
     }
 
     fun showImagesDialog() {

@@ -38,7 +38,9 @@ import eu.kanade.tachiyomi.data.track.EnhancedMangaTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.MangaSource
+import eu.kanade.tachiyomi.ui.mal.MalEntryIds
 import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
+import eu.kanade.tachiyomi.ui.mal.MalEntryLinker
 import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
@@ -900,11 +902,11 @@ class MangaScreenModel(
     }
 
     /**
-     * The MyAnimeList entry the app has linked with this manga, if it has one.
+     * The MyAnimeList entry of this manga, whenever the app is sure which one it is.
      *
-     * The app never picks an entry on its own - the user always picks one in the picker. The
-     * link is only shown there, so a link that points at the wrong entry is visible and can
-     * be changed.
+     * The app only opens an entry on its own when the local manga and the entry are the same
+     * manga - the same title letter for letter, the volumes included. A linked entry that
+     * doesn't pass that test is not opened - it goes to the picker with the link shown marked.
      */
     suspend fun lookupMalEntry(): MalEntryLookup {
         val tracker = Injekt.get<TrackerManager>().myAnimeList
@@ -917,10 +919,36 @@ class MangaScreenModel(
             logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${manga.title}" }
             emptyList()
         }
-        return MalEntryLookup.Pick(
-            linkedMalId = tracks.find { it.trackerId == MalProgressSync.MAL_TRACKER_ID }
-                ?.remoteId?.toInt(),
-        )
+
+        val malId = tracks.find { it.trackerId == MalProgressSync.MAL_TRACKER_ID }?.remoteId?.toInt()
+        val anilistId = tracks.find { it.trackerId == MalProgressSync.ANILIST_TRACKER_ID }?.remoteId?.toInt()
+
+        // A linked entry is only used when it matches the manga letter for letter
+        if (MalEntryLinker.linkedEntryMatches(
+                manga.title,
+                malId,
+                anilistId,
+                MalListScreenModel.MediaType.MANGA,
+            )
+        ) {
+            return MalEntryLookup.Found(MalEntryIds(anilistId = anilistId, malId = malId))
+        }
+
+        // No trusted link - one letter for letter match may be linked on its own
+        val exact = MalEntryLinker.findExact(manga.title, MalListScreenModel.MediaType.MANGA)
+        if (exact != null) {
+            MalProgressSync.linkManga(
+                mangaId = manga.id,
+                mangaTitle = manga.title,
+                malId = exact.malId,
+                chaptersRead = exact.episodesWatched,
+                skipStatusLookup = true,
+                statusId = exact.statusId,
+            )
+            return MalEntryLookup.Found(MalEntryIds(anilistId = anilistId, malId = exact.malId))
+        }
+
+        return MalEntryLookup.Pick(linkedMalId = malId)
     }
 
     fun showCoverDialog() {

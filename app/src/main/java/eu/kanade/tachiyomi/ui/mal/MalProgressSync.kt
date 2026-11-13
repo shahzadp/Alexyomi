@@ -32,6 +32,9 @@ object MalProgressSync {
     /** Id of the MyAnimeList tracker. */
     const val MAL_TRACKER_ID = 1L
 
+    /** Id of the AniList tracker. */
+    const val ANILIST_TRACKER_ID = 2L
+
     private val getAnimeTracks: GetAnimeTracks = Injekt.get()
     private val insertAnimeTrack: InsertAnimeTrack = Injekt.get()
     private val animeTrackRepository: AnimeTrackRepository = Injekt.get()
