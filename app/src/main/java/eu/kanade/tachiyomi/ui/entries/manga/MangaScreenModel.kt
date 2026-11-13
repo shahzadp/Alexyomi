@@ -36,7 +36,6 @@ import eu.kanade.tachiyomi.data.download.manga.MangaDownloadManager
 import eu.kanade.tachiyomi.data.download.manga.model.MangaDownload
 import eu.kanade.tachiyomi.data.track.EnhancedMangaTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.MangaSource
 import eu.kanade.tachiyomi.ui.mal.MalEntryIds
@@ -44,7 +43,6 @@ import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
 import eu.kanade.tachiyomi.ui.mal.MalEntryResolver
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
-import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
 import eu.kanade.tachiyomi.util.system.toast
@@ -120,9 +118,6 @@ class MangaScreenModel(
 ) : StateScreenModel<MangaScreenModel.State>(State.Loading) {
 
     private var cachedMalEntryIds: MalEntryIds? = null
-
-    /** The link with MyAnimeList is only looked up once per screen. */
-    private var lastMalLinkAttempt = 0L
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -201,19 +196,6 @@ class MangaScreenModel(
         }
 
         observeDownloads()
-
-        // Keep the read chapters in sync with MyAnimeList. This has to run when the chapters
-        // are there, otherwise there is nothing to tick.
-        screenModelScope.launchIO {
-            getMangaAndChapters.subscribe(mangaId, applyScanlatorFilter = true)
-                .distinctUntilChanged()
-                .flowWithLifecycle(lifecycle)
-                .collectLatest { (manga, chapters) ->
-                    if (chapters.isNotEmpty()) {
-                        syncMalProgress(manga)
-                    }
-                }
-        }
 
         screenModelScope.launchIO {
             val manga = getMangaAndChapters.awaitManga(mangaId)
@@ -921,25 +903,6 @@ class MangaScreenModel(
     }
 
     /**
-     * Resolves the MyAnimeList ids of this manga so it can be added to (or updated on) the MAL list.
-     */
-    suspend fun resolveMalEntryIds(): MalEntryIds? {
-        cachedMalEntryIds?.let { return it }
-        val manga = manga ?: return null
-        val tracks = try {
-            getTracks.await(manga.id)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${manga.title}" }
-            emptyList()
-        }
-        val ids = MalEntryResolver.forManga(manga.id, manga.title, tracks)
-        if (ids != null) {
-            cachedMalEntryIds = ids
-        }
-        return ids
-    }
-
-    /**
      * Looks the MyAnimeList entry of this manga up.
      *
      * When the app can't tell the entries apart, the user picks the entry - opening a wrong
@@ -961,63 +924,6 @@ class MangaScreenModel(
         return lookup
     }
 
-    /**
-     * Keeps the read chapters of the manga in sync with its MyAnimeList entry.
-     *
-     * The manga is linked with the entry when it is on the user's list, then the progress of
-     * the list is applied to the local chapters, so a chapter that was read elsewhere is
-     * ticked without the user having to mark it again.
-     */
-    private suspend fun syncMalProgress(manga: Manga) {
-        val tracker = Injekt.get<TrackerManager>().myAnimeList
-        if (!tracker.isLoggedIn) return
-
-        val tracks = try {
-            getTracks.await(manga.id)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${manga.title}" }
-            emptyList()
-        }
-
-        // The entry is looked up again every now and then, so a link that points at the wrong
-        // entry is corrected instead of being used forever.
-        val now = System.currentTimeMillis()
-        if (now - lastMalLinkAttempt >= MAL_LINK_RETRY_INTERVAL) {
-            lastMalLinkAttempt = now
-            linkWithMalEntry(manga, tracks)
-            return
-        }
-
-        // Apply the progress of the entry that is linked already
-        val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID } ?: return
-        val markAll = track.status == MyAnimeList.COMPLETED
-        val progress = MalProgressSync.applyProgressForManga(manga.id, track.remoteId, markAll)
-        if (progress != null) {
-            MalProgressSync.logEvent("Applied MAL progress $progress to manga ${manga.id}")
-        }
-    }
-
-    /**
-     * Looks the manga up on MyAnimeList and links it, when it is on the user's list.
-     */
-    private suspend fun linkWithMalEntry(manga: Manga, tracks: List<MangaTrack>) {
-        val tracker = Injekt.get<TrackerManager>().myAnimeList
-        val malId = MalEntryResolver.forManga(manga.id, manga.title, tracks)?.malId ?: return
-        val status = try {
-            tracker.findMangaListStatus(malId)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load the MyAnimeList status of ${manga.title}" }
-            null
-        } ?: return
-
-        MalProgressSync.linkManga(
-            mangaId = manga.id,
-            mangaTitle = manga.title,
-            malId = malId,
-            chaptersRead = status.numChaptersRead.toInt(),
-        )
-    }
-
     fun showCoverDialog() {
         updateSuccessState { it.copy(dialog = Dialog.FullCover) }
     }
@@ -1026,13 +932,6 @@ class MangaScreenModel(
         screenModelScope.launchIO {
             setExcludedScanlators.await(mangaId, excludedScanlators)
         }
-    }
-
-    companion object {
-        /**
-         * How long to wait before the MyAnimeList entry is looked up again.
-         */
-        private const val MAL_LINK_RETRY_INTERVAL = 5_000L
     }
 
     sealed interface State {

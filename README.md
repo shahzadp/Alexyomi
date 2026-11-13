@@ -14,10 +14,10 @@ MyAnimeList.
   a search history. Status, score and progress are edited right there, or with the *Add to
   MAL* button on any entry page.
 - **Browse** — Seasonal, Top and search, backed by AniList's free API.
-- **Two-way progress sync** — watch an episode in the app and MyAnimeList's counter goes up;
-  mark episodes as watched on MyAnimeList and they are ticked in the app. Nothing has to be
-  marked twice. A background job keeps the two in sync, so anime you never opened are ticked
-  as well.
+- **Progress goes to MyAnimeList** — add an anime with the *Add to MAL* button and the
+  episodes you watch move the counter of the list. The app never guesses which entry belongs
+  to an anime: when it can't tell them apart, it shows the entries and you pick the right
+  one. Nothing gets ticked in the app from MyAnimeList, only what you watch here is sent.
 - **Downloads tab** — the download queue and everything downloaded in one place, with live
   progress, per-item play/delete and a media player picker.
 - **Built-in player** (mpv) with 720p and dubbed audio applied across your installed

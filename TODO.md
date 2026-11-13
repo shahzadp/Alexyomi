@@ -20,7 +20,17 @@ That is the only line that has to change — the header and the OAuth flow use t
 Note: the redirect URI is declared in `app/src/main/AndroidManifest.xml` for
 `TrackLoginActivity`. It has to stay in sync with the value registered at MAL.
 
-## 2. The AniList ↔ MyAnimeList bridge misses niche anime
+## 2. Nothing is ticked in the app from MyAnimeList anymore
+
+The auto-tick (the progress of the list applied to the local episodes) was removed on purpose.
+It needed a title match between the list and every local anime, and the seasons of a show
+look almost the same - a wrong match ticks the wrong episodes.
+
+Only the other direction is automatic: watching an episode here updates the counter of the
+list entry the user picked. If the user wants the episodes they watched elsewhere ticked as
+well, they mark them in the app.
+
+## 3. The AniList ↔ MyAnimeList bridge misses niche anime
 
 The bridge used to look the MAL id up through AniList only, which is why obscure and adult
 entries were never found: AniList knows fewer anime than MAL and its search skips adult
@@ -29,14 +39,15 @@ content.
 It now walks several sources (`MalEntryResolver`):
 
 1. the tracker that is already linked to the anime
-2. the user's own MAL list — matched by a normalised title comparison (`MalTitleMatcher`)
-3. MyAnimeList's own search
-4. AniList's search, as the last resort
+2. the user's own MAL list — matched by an exact title comparison (`MalTitleMatcher`)
+3. AniList's search, whose romaji title bridges the language gap
+4. MyAnimeList's own search, which knows the entries AniList doesn't have
 
 The entry page also falls back to MyAnimeList for the details when AniList doesn't know the
 entry (`MalAnimeInfoScreenModel.loadDetails`).
 
-**Done:** the guesswork is gone. The comparison compares the season numbers of the titles, so
-"X 3rd Season" never matches "X Season 4". When nothing fits the title or several entries fit
-it equally well, the app opens the entry picker (`MalEntryPickerScreen`) and the user picks
-the entry — the app never opens an entry that could be a different anime.
+**Done:** the guesswork is gone. Only an entry whose title is exactly the title of the anime
+is opened on its own - including the romaji title of AniList, which is what the extensions
+usually show. Everything else opens the entry picker (`MalEntryPickerScreen`), where the
+entries of the list of the user, of MyAnimeList and of AniList are ranked - the number of
+episodes tells the seasons apart, and the entries that are already on the list are marked.

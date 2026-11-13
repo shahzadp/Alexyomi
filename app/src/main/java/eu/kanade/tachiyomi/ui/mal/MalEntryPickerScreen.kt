@@ -33,7 +33,9 @@ class MalEntryPickerScreen(
         val navigator = LocalNavigator.currentOrThrow
         val isManga = localMangaId != null
 
-        val screenModel = rememberScreenModel { MalEntryPickerScreenModel(title, isManga) }
+        val screenModel = rememberScreenModel {
+            MalEntryPickerScreenModel(title, isManga, localAnimeId = localAnimeId)
+        }
         val state by screenModel.state.collectAsState()
 
         MalEntryPickerScreen(

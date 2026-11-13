@@ -51,6 +51,23 @@ object MalTitleMatcher {
     private val WHITESPACE = Regex("\\s+")
 
     /**
+     * A tag at the start of a title: "[Sub] Frieren"
+     */
+    private val LEADING_TAG = Regex("^[\\[(][^\\])]*[\\])]\\s*")
+
+    /**
+     * A tag at the end of a title: "Frieren (TV)"
+     */
+    private val TRAILING_TAG = Regex("\\s*[\\[(][^\\])]*[\\])]\\s*$")
+
+    /**
+     * The words the extensions add at the end of a title.
+     */
+    private val TRAILING_WORDS = Regex(
+        "\\s+(?:tv|ova|ona|dub|sub|hd|sd|bd|complete|batch|uncensored|remux)\\s*$",
+    )
+
+    /**
      * Minimum score for a title to be considered the same anime.
      */
     const val MIN_SCORE = 30
@@ -164,6 +181,48 @@ object MalTitleMatcher {
      */
     fun tokensNormalized(title: String): Set<String> =
         title.split(' ').filter { it.length > 1 }.toSet()
+
+    /**
+     * The title without the decorations the extensions add.
+     *
+     * "[Sub] Sousou no Frieren (TV)" becomes "sousou no frieren" - the decorations say
+     * nothing about the anime, only the title does.
+     */
+    fun clean(title: String): String {
+        var result = title.trim()
+        // The tags have to come off while the brackets are still there - several of them can
+        // be stacked ("[Sub] [1080p] Title").
+        while (true) {
+            val stripped = LEADING_TAG.replace(result, "")
+            if (stripped == result) break
+            result = stripped
+        }
+        result = TRAILING_TAG.replace(result, "")
+        result = TRAILING_WORDS.replace(normalize(result), "")
+        return result.trim()
+    }
+
+    /**
+     * Whether the two titles are the same anime.
+     *
+     * The season may be spelled differently ("One Piece Season 3" / "One Piece 3rd Season"),
+     * but the seasons of a show are different entries - "One Piece Season 3" is not
+     * "One Piece Season 4".
+     */
+    fun isSameTitle(a: String, b: String): Boolean {
+        val first = normalize(a)
+        val second = normalize(b)
+        if (first == second) return true
+        if (first.isEmpty() || second.isEmpty()) return false
+
+        val seasonFirst = seasonNumber(first)
+        val seasonSecond = seasonNumber(second)
+        if (seasonFirst == null || seasonSecond == null || seasonFirst != seasonSecond) return false
+
+        val baseFirst = withoutSeason(first)
+        val baseSecond = withoutSeason(second)
+        return baseFirst.isNotEmpty() && baseFirst == baseSecond
+    }
 
     /**
      * The score of a title that starts with the other one.

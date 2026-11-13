@@ -166,5 +166,13 @@ private fun MalEntryChoiceRow(
                 )
             }
         }
+        if (item.onYourList) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(AYMR.strings.mal_on_your_list),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }

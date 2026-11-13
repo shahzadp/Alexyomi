@@ -179,6 +179,7 @@
     <string name="mal_pick_entry">Select the entry</string>
     <string name="mal_pick_entry_summary">Pick the entry that matches, so the right anime is added to your list.</string>
     <string name="mal_pick_entry_no_results">No entries found</string>
+    <string name="mal_on_your_list">On your list</string>
     <string name="mal_log_out">Log out</string>
     <string name="mal_log_out_confirm">Tap again to log out</string>
     <string name="mal_search_history">Search history</string>

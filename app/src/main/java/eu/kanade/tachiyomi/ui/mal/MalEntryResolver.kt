@@ -56,14 +56,6 @@ object MalEntryResolver {
     private const val ANILIST_TRACKER_ID = 2L
 
     /**
-     * How close a second entry has to be to the best one, before the app stops guessing.
-     *
-     * Two seasons of the same show have nearly the same title - when they are this close,
-     * the user has to pick the entry.
-     */
-    private const val AMBIGUITY_MARGIN = 10
-
-    /**
      * A possible match, with the title it is known under.
      */
     private data class Candidate(
@@ -75,37 +67,11 @@ object MalEntryResolver {
     )
 
     /**
-     * The best score of the candidate against the title.
-     */
-    private fun Candidate.scoreFor(title: String): Int {
-        val byTitle = MalTitleMatcher.score(title, this.title)
-        val byRomaji = if (titleRomaji.isBlank()) 0 else MalTitleMatcher.score(title, titleRomaji)
-        return maxOf(byTitle, byRomaji)
-    }
-
-    suspend fun forAnime(animeId: Long, title: String, tracks: List<AnimeTrack>): MalEntryIds? {
-        val malId = tracks.find { it.trackerId == MAL_TRACKER_ID }?.remoteId?.toInt()
-        val anilistId = tracks.find { it.trackerId == ANILIST_TRACKER_ID }?.remoteId?.toInt()
-        if (malId != null || anilistId != null) {
-            return MalEntryIds(anilistId = anilistId, malId = malId)
-        }
-        return resolve(title, MalListScreenModel.MediaType.ANIME)
-    }
-
-    suspend fun forManga(mangaId: Long, title: String, tracks: List<MangaTrack>): MalEntryIds? {
-        val malId = tracks.find { it.trackerId == MAL_TRACKER_ID }?.remoteId?.toInt()
-        val anilistId = tracks.find { it.trackerId == ANILIST_TRACKER_ID }?.remoteId?.toInt()
-        if (malId != null || anilistId != null) {
-            return MalEntryIds(anilistId = anilistId, malId = malId)
-        }
-        return resolve(title, MalListScreenModel.MediaType.MANGA)
-    }
-
-    /**
      * Looks the entry of an anime up, without guessing.
      *
-     * Returns [MalEntryLookup.Uncertain] when nothing fits the title or when several entries
-     * fit it equally well - the caller then lets the user pick the entry.
+     * The app only opens an entry when the title is exactly the same - the seasons of a show
+     * look almost the same, and "One Piece" is not "One Piece Shippuden". When the title is
+     * not an exact match, [MalEntryLookup.Uncertain] is returned and the user picks the entry.
      */
     suspend fun lookupAnime(
         animeId: Long,
@@ -149,12 +115,12 @@ object MalEntryResolver {
     /**
      * Finds the MyAnimeList id of the entry with the given title.
      *
-     * All the sources are scored against the title and the best one wins. The titles of the
-     * extensions are usually the romaji ones, while MyAnimeList uses the english ones - the
-     * romaji title of the AniList entry is what bridges that gap.
+     * Only an exact title match is accepted. The extensions use other titles than MyAnimeList
+     * ("Sousou no Frieren" / "Frieren: Beyond Journey's End"), so the romaji title of the
+     * AniList entry counts as well - it is the same title in another language.
      *
-     * Returns null when nothing fits the title well enough - the app must not open an entry
-     * that could be a completely different anime.
+     * Everything else is handed over to the user: the seasons of a show look almost the same
+     * and "One Piece" is not "One Piece Shippuden". A wrong entry is worse than a question.
      */
     private suspend fun resolve(
         title: String,
@@ -164,6 +130,10 @@ object MalEntryResolver {
 
         val candidates = mutableListOf<Candidate>()
 
+        // The extensions decorate their titles ("[Sub] Frieren (TV)") - the search engines
+        // understand the bare title much better.
+        val searchQuery = MalTitleMatcher.clean(title).takeIf { it.isNotBlank() } ?: title
+
         // The user's own list - it is exactly what they are looking at
         val cached = MalListStore.read(mediaType)
         cached?.forEach { entry ->
@@ -171,45 +141,52 @@ object MalEntryResolver {
         }
 
         // AniList knows the mapping between both
-        val anilistResults = searchByAnilist(title)
+        val anilistResults = searchByAnilist(searchQuery)
         candidates += anilistResults
 
         // MyAnimeList knows the entries AniList doesn't have
-        searchByMal(title, mediaType)?.forEach { (id, entryTitle) ->
+        searchByMal(searchQuery, mediaType)?.forEach { (id, entryTitle) ->
             candidates += Candidate(malId = id, anilistId = null, title = entryTitle)
         }
 
-        // The best match wins. The user's list comes first, so it wins a tie - it knows which
-        // version of a title the user actually has.
-        val scored = candidates
-            .map { it to it.scoreFor(title) }
-            .sortedByDescending { it.second }
-        val best = scored.firstOrNull()
-        if (best == null || best.second < MalTitleMatcher.MIN_SCORE) {
-            MalProgressSync.logEvent("No MyAnimeList match for '$title'")
+        // The exact matches - the title of the anime is the title of the entry.
+        val exact = candidates.filter { candidate ->
+            candidate.titles().any { candidateTitle ->
+                MalTitleMatcher.isSameTitle(candidateTitle, title) ||
+                    MalTitleMatcher.isSameTitle(candidateTitle, MalTitleMatcher.clean(title))
+            }
+        }
+        if (exact.isEmpty()) {
+            MalProgressSync.logEvent("No exact MyAnimeList match for '$title'")
             return null
         }
 
-        // A second entry that scores nearly the same means the app can't tell them apart -
-        // the seasons of a show look almost the same. The user picks the entry then.
-        val second = scored.getOrNull(1)
-        if (second != null && second.second >= best.second - AMBIGUITY_MARGIN) {
-            val sameEntry = second.first.malId != null && second.first.malId == best.first.malId
-            if (!sameEntry) {
-                MalProgressSync.logEvent(
-                    "Ambiguous MyAnimeList match for '$title': '${best.first.title}' and " +
-                        "'${second.first.title}'",
-                )
-                return null
-            }
+        // Several entries with exactly the same title - the user has to say which one they
+        // mean, the app must not pick one on its own.
+        val distinctMalIds = exact.mapNotNull { it.malId }.distinct()
+        if (distinctMalIds.size > 1) {
+            MalProgressSync.logEvent("Several MyAnimeList entries are called '$title'")
+            return null
         }
 
+        // The candidate that knows the most: the AniList one carries the AniList id as well.
+        val best = exact.firstOrNull { it.anilistId != null && it.malId != null }
+            ?: exact.firstOrNull { it.malId != null }
+            ?: exact.first()
         MalProgressSync.logEvent(
-            "Matched '$title' with MyAnimeList entry ${best.first.malId} " +
-                "('${best.first.title}', score ${best.second})",
+            "Matched '$title' with MyAnimeList entry ${best.malId} ('${best.title}')",
         )
-        return MalEntryIds(anilistId = best.first.anilistId, malId = best.first.malId)
+        return MalEntryIds(anilistId = best.anilistId, malId = best.malId)
     }
+
+    /**
+     * The titles the entry is known under.
+     */
+    private fun Candidate.titles(): List<String> = listOf(title, titleRomaji)
+        .filter { it.isNotBlank() }
+        .flatMap { listOf(it, MalTitleMatcher.clean(it)) }
+        .filter { it.isNotBlank() }
+        .distinct()
 
     /**
      * Searches AniList, which knows the MyAnimeList id of the anime it knows.
@@ -217,7 +194,7 @@ object MalEntryResolver {
     private suspend fun searchByAnilist(title: String): List<Candidate> {
         return try {
             val api = AnilistBrowseApi(Injekt.get<NetworkHelper>().client)
-            val result = withTimeout(8.seconds) { api.searchAnime(title) }
+            val result = withTimeout(8.seconds) { api.searchAnime(title, includeAdult = true) }
             result.items.map {
                 Candidate(
                     malId = it.malId,

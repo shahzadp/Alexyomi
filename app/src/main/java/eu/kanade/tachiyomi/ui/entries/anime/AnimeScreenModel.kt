@@ -38,14 +38,12 @@ import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadManager
 import eu.kanade.tachiyomi.data.download.anime.model.AnimeDownload
 import eu.kanade.tachiyomi.data.track.EnhancedAnimeTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.ui.entries.anime.track.AnimeTrackItem
 import eu.kanade.tachiyomi.ui.mal.MalEntryIds
 import eu.kanade.tachiyomi.ui.mal.MalEntryLookup
 import eu.kanade.tachiyomi.ui.mal.MalEntryResolver
 import eu.kanade.tachiyomi.ui.mal.MalListScreenModel
 import eu.kanade.tachiyomi.ui.mal.MalListStore
-import eu.kanade.tachiyomi.ui.mal.MalProgressSync
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.util.AniChartApi
@@ -146,9 +144,6 @@ class AnimeScreenModel(
 
     private var cachedMalEntryIds: MalEntryIds? = null
 
-    /** The link with MyAnimeList is only looked up once per screen. */
-    private var lastMalLinkAttempt = 0L
-
     private val successState: State.Success?
         get() = state.value as? State.Success
 
@@ -206,21 +201,6 @@ class AnimeScreenModel(
         }
 
         observeDownloads()
-
-        // Keep the read episodes in sync with MyAnimeList. This has to run when the
-        // episodes are there, otherwise there is nothing to tick.
-        screenModelScope.launchIO {
-            getAnimeAndEpisodesAndSeasons.subscribe(animeId)
-                .distinctUntilChanged()
-                .flowWithLifecycle(lifecycle)
-                .collect { (anime, episodes, _) ->
-                    // The lookup takes a moment, so it runs on its own - a new emission must
-                    // not cancel the one that is running.
-                    screenModelScope.launchIO {
-                        syncMalProgress(anime)
-                    }
-                }
-        }
 
         screenModelScope.launchIO {
             val anime = getAnimeAndEpisodesAndSeasons.awaitAnime(animeId)
@@ -1372,25 +1352,6 @@ class AnimeScreenModel(
     }
 
     /**
-     * Resolves the MyAnimeList ids of this anime so it can be added to (or updated on) the MAL list.
-     */
-    suspend fun resolveMalEntryIds(): MalEntryIds? {
-        cachedMalEntryIds?.let { return it }
-        val anime = anime ?: return null
-        val tracks = try {
-            getTracks.await(anime.id)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${anime.title}" }
-            emptyList()
-        }
-        val ids = MalEntryResolver.forAnime(anime.id, anime.title, tracks)
-        if (ids != null) {
-            cachedMalEntryIds = ids
-        }
-        return ids
-    }
-
-    /**
      * Looks the MyAnimeList entry of this anime up.
      *
      * When the app can't tell the entries apart, the user picks the entry - opening a wrong
@@ -1412,73 +1373,6 @@ class AnimeScreenModel(
         return lookup
     }
 
-    /**
-     * Keeps the watched episodes of the anime in sync with its MyAnimeList entry.
-     *
-     * The anime is linked with the entry when it is on the user's list, then the progress of
-     * the list is applied to the local episodes, so an episode that was watched elsewhere is
-     * ticked without the user having to mark it again.
-     */
-    private suspend fun syncMalProgress(anime: Anime) {
-        val tracker = Injekt.get<TrackerManager>().myAnimeList
-        if (!tracker.isLoggedIn) return
-
-        val tracks = try {
-            getTracks.await(anime.id)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load trackers of ${anime.title}" }
-            emptyList()
-        }
-
-        // The entry is looked up again every now and then, so a link that points at the wrong
-        // entry is corrected instead of being used forever.
-        val now = System.currentTimeMillis()
-        if (now - lastMalLinkAttempt >= MAL_LINK_RETRY_INTERVAL) {
-            lastMalLinkAttempt = now
-            linkWithMalEntry(anime, tracks)
-            return
-        }
-
-        // Apply the progress of the entry that is linked already
-        val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID } ?: return
-        val markAll = track.status == MyAnimeList.COMPLETED
-        val progress = MalProgressSync.applyProgressForAnime(anime.id, track.remoteId, markAll)
-        if (progress != null) {
-            MalProgressSync.logEvent("Applied MAL progress $progress to anime ${anime.id}")
-        }
-    }
-
-    /**
-     * Looks the anime up on MyAnimeList and links it, when it is on the user's list.
-     */
-    private suspend fun linkWithMalEntry(anime: Anime, tracks: List<AnimeTrack>) {
-        val tracker = Injekt.get<TrackerManager>().myAnimeList
-        val ids = MalEntryResolver.forAnime(anime.id, anime.title, tracks)
-        val malId = ids?.malId
-        if (malId == null) {
-            MalProgressSync.logEvent("No MyAnimeList entry for '${anime.title}' (id ${anime.id})")
-            return
-        }
-
-        val status = try {
-            tracker.findListStatus(malId)
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load the MyAnimeList status of ${anime.title}" }
-            null
-        }
-        if (status == null) {
-            MalProgressSync.logEvent("MyAnimeList entry $malId is not on the user's list")
-            return
-        }
-
-        MalProgressSync.linkAnime(
-            animeId = anime.id,
-            animeTitle = anime.title,
-            malId = malId,
-            episodesWatched = status.numEpisodesWatched.toInt(),
-        )
-    }
-
     fun showImagesDialog() {
         updateSuccessState { it.copy(dialog = Dialog.FullImages) }
     }
@@ -1489,13 +1383,6 @@ class AnimeScreenModel(
 
     private fun showQualitiesDialog(episode: Episode) {
         updateSuccessState { it.copy(dialog = Dialog.ShowQualities(episode, it.anime, it.source)) }
-    }
-
-    companion object {
-        /**
-         * How long to wait before the MyAnimeList entry is looked up again.
-         */
-        private const val MAL_LINK_RETRY_INTERVAL = 5_000L
     }
 
     sealed interface State {

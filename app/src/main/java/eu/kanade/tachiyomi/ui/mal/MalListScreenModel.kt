@@ -3,7 +3,11 @@ package eu.kanade.tachiyomi.ui.mal
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.data.track.anilist.AnilistBrowseApi
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALAnimeListItem
+import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALMangaListItem
+import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -20,6 +24,7 @@ import uy.kohesive.injekt.api.get
 
 class MalListScreenModel(
     private val tracker: MyAnimeList = Injekt.get<TrackerManager>().myAnimeList,
+    private val anilistApi: AnilistBrowseApi = AnilistBrowseApi(Injekt.get<NetworkHelper>().client),
 ) : StateScreenModel<MalListScreenModel.State>(State()) {
 
     enum class MediaType { ANIME, MANGA }
@@ -100,7 +105,54 @@ class MalListScreenModel(
     private suspend fun fetchFresh(mediaType: MediaType): List<MalListEntry> {
         // The full list is always fetched; filtering happens client-side.
         // This keeps the disk cache complete for offline viewing.
-        return MalListSync.fetch(mediaType)
+        val entries = mutableListOf<MalListEntry>()
+        var offset = 0
+        while (entries.size < MAX_ENTRIES) {
+            val entriesThisPage = if (mediaType == MediaType.ANIME) {
+                val page = tracker.animeListPage(status = null, offset = offset)
+                Pair(page.data.map { it.toEntry() }, page.paging.next.isNullOrBlank())
+            } else {
+                val page = tracker.mangaListPage(status = null, offset = offset)
+                Pair(page.data.map { it.toEntry() }, page.paging.next.isNullOrBlank())
+            }
+            entries += entriesThisPage.first
+            if (entriesThisPage.second || entriesThisPage.first.isEmpty()) break
+            offset += PAGE_SIZE
+        }
+        return entries
+    }
+
+    /**
+     * Fills the missing totals/airing status from AniList, only for the entries that lack them.
+     *
+     * MyAnimeList doesn't always send the number of episodes or the chapters, and without them
+     * the list is not of much use.
+     */
+    private suspend fun enrichMissing(working: MutableList<MalListEntry>, mediaType: MediaType) {
+        val missing = working.filter { it.total == null || it.airingStatus.isBlank() }
+        if (missing.isEmpty()) return
+        val info = try {
+            if (mediaType == MediaType.ANIME) {
+                anilistApi.listStatusByMalId(missing.map { it.id.toInt() })
+            } else {
+                anilistApi.mangaChaptersByMalId(missing.map { it.id.toInt() })
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        if (info.isEmpty()) return
+
+        for (i in working.indices) {
+            val entry = working[i]
+            val enrich = info[entry.id.toInt()] ?: continue
+            working[i] = entry.copy(
+                total = entry.total ?: enrich.episodes,
+                airingStatus = entry.airingStatus.takeIf { it.isNotBlank() } ?: enrich.airingStatus,
+                mediaType = entry.mediaType?.takeIf { it.isNotBlank() } ?: enrich.format,
+                seasonLabel = entry.seasonLabel
+                    ?: enrich.season?.let { s -> enrich.seasonYear?.let { y -> "$s $y" } ?: s },
+            )
+        }
     }
 
     /** Keeps the locally cached fields (totals, artwork) whenever MAL doesn't send them. */
@@ -197,11 +249,18 @@ class MalListScreenModel(
                         return@launchIO
                     }
                 }
-                // The list is shown right away. The details and the sync with the local anime
-                // run in the background job, so the screen never waits for them.
+                // The list is shown right away. The details that MyAnimeList doesn't send
+                // are filled in afterwards, so the screen never waits for them.
                 MalListStore.write(mediaType, merged)
                 mutableState.update {
                     it.copy(loading = false, entries = merged.toImmutableList(), error = false)
+                }
+                screenModelScope.launchIO {
+                    val working = merged.toMutableList()
+                    enrichMissing(working, mediaType)
+                    val complete = working.toImmutableList()
+                    MalListStore.write(mediaType, complete)
+                    mutableState.update { it.copy(entries = complete) }
                 }
             } catch (e: Exception) {
                 mutableState.update { it.copy(loading = false, error = true) }
@@ -210,25 +269,12 @@ class MalListScreenModel(
     }
 
     /**
-     * Refreshes the list by hand and syncs the progress in the background.
-     *
-     * The sync runs in a background job, so the list is shown right away.
+     * Refreshes the list by hand.
      */
     fun refresh() {
         load()
-        MalSyncJob.runNow(Injekt.get())
     }
 
-    /**
-     * Ticks the episodes/chapters that were watched elsewhere (on MAL) in the local episode
-     * lists, so the user doesn't have to mark them a second time.
-     */
-    private suspend fun applyProgressToLocalEpisodes(entries: List<MalListEntry>) {
-        when (mutableState.value.mediaType) {
-            MediaType.ANIME -> MalProgressSync.applyListProgress(entries)
-            MediaType.MANGA -> MalProgressSync.applyMangaListProgress(entries)
-        }
-    }
     fun setFilter(filter: Filter) {
         if (mutableState.value.selectedFilter == filter) return
         // Filtering is client-side — no refetch needed
@@ -362,6 +408,63 @@ class MalListScreenModel(
         }
     }
 
+    /**
+     * The season an entry aired in, for the label of the row.
+     */
+    private fun seasonOf(date: String?): String? {
+        if (date.isNullOrBlank()) return null
+        val year = date.take(4)
+        if (year.toIntOrNull() == null) return null
+        val month = date.substringAfter('-', missingDelimiterValue = "")
+            .substringBefore('-')
+            .toIntOrNull()
+        return if (month != null) {
+            val season = when (month) {
+                in 1..3 -> "Winter"
+                in 4..6 -> "Spring"
+                in 7..9 -> "Summer"
+                else -> "Fall"
+            }
+            "$season $year"
+        } else {
+            year
+        }
+    }
+
+    private fun MALMangaListItem.toEntry(): MalListEntry {
+        return MalListEntry(
+            id = node.id,
+            title = node.title,
+            coverUrl = node.covers?.medium?.takeIf { it.isNotBlank() } ?: node.covers?.large.orEmpty(),
+            progress = listStatus.numChaptersRead.toInt(),
+            total = node.numChapters.toInt().takeIf { it > 0 },
+            status = listStatus.status,
+            airingStatus = node.status,
+            isReplaying = listStatus.isRereading,
+            score = listStatus.score,
+            mediaType = node.mediaType.takeIf { it.isNotBlank() },
+            seasonLabel = seasonOf(node.startDate),
+            updatedAt = listStatus.updatedAt,
+        )
+    }
+
+    private fun MALAnimeListItem.toEntry(): MalListEntry {
+        return MalListEntry(
+            id = node.id,
+            title = node.title,
+            coverUrl = node.covers?.medium?.takeIf { it.isNotBlank() } ?: node.covers?.large.orEmpty(),
+            progress = listStatus.numEpisodesWatched.toInt(),
+            total = node.numEpisodes.toInt().takeIf { it > 0 },
+            status = listStatus.status,
+            airingStatus = node.status,
+            isReplaying = listStatus.isRewatching,
+            score = listStatus.score,
+            mediaType = node.mediaType.takeIf { it.isNotBlank() },
+            seasonLabel = seasonOf(node.startDate),
+            updatedAt = listStatus.updatedAt,
+        )
+    }
+
     fun removeFromList(entry: MalListEntry) {
         screenModelScope.launchIO {
             try {
@@ -439,4 +542,10 @@ class MalListScreenModel(
         val entries: ImmutableList<MalListEntry> = persistentListOf(),
         val updatingIds: Set<Long> = emptySet(),
     )
+
+    companion object {
+        private const val PAGE_SIZE = 250
+        // Safety bound only; the fetch loop actually ends when MAL stops returning a next page
+        private const val MAX_ENTRIES = 10000
+    }
 }

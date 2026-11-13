@@ -14,6 +14,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.domain.items.episode.interactor.GetEpisodesByAnimeId
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -27,8 +28,8 @@ data class MalEntryChoice(
     val coverUrl: String = "",
     val format: String? = null,
     val episodes: Int? = null,
-    /** Whether the entry was found on MyAnimeList itself. */
-    val fromMal: Boolean = false,
+    /** Whether the entry is already on the list of the user. */
+    val onYourList: Boolean = false,
 )
 
 /**
@@ -41,8 +42,10 @@ data class MalEntryChoice(
 class MalEntryPickerScreenModel(
     private val initialQuery: String,
     private val isManga: Boolean = false,
+    private val localAnimeId: Long? = null,
     private val anilistApi: AnilistBrowseApi = AnilistBrowseApi(Injekt.get<NetworkHelper>().client),
     private val tracker: MyAnimeList = Injekt.get<TrackerManager>().myAnimeList,
+    private val getEpisodes: GetEpisodesByAnimeId = Injekt.get(),
 ) : StateScreenModel<MalEntryPickerScreenModel.State>(State(query = initialQuery)) {
 
     private var lastQuery = ""
@@ -86,26 +89,51 @@ class MalEntryPickerScreenModel(
     }
 
     /**
-     * The entries of both MyAnimeList and AniList that fit the query.
+     * The entries of the list of the user, of MyAnimeList and of AniList that fit the query.
      *
-     * AniList knows the mapping between both and has the covers, MyAnimeList knows the
-     * entries AniList doesn't have.
+     * The entries of the user's own list come first - they are what the user is looking for.
+     * The ones that are already on the list are marked, so the right one is easy to spot.
      */
     private suspend fun searchEntries(query: String): List<MalEntryChoice> {
         val choices = LinkedHashMap<Int, MalEntryChoice>()
+        val onYourList = mutableSetOf<Int>()
 
+        // The list of the user - it is exactly what they are looking for, and it is known
+        // without a request.
+        val mediaType = if (isManga) {
+            MalListScreenModel.MediaType.MANGA
+        } else {
+            MalListScreenModel.MediaType.ANIME
+        }
+        MalListStore.read(mediaType)?.forEach { entry ->
+            val id = entry.id.toInt()
+            onYourList += id
+            choices[id] = MalEntryChoice(
+                malId = id,
+                anilistId = null,
+                title = entry.title,
+                coverUrl = entry.coverUrl,
+                format = entry.mediaType,
+                episodes = entry.total,
+                onYourList = true,
+            )
+        }
+
+        // AniList knows the mapping between both and has the covers
         if (!isManga) {
             try {
-                val page = anilistApi.searchAnime(query, includeAdult = true)
+                val page = anilistApi.searchAnime(searchQuery(query), includeAdult = true)
                 for (item in page.items) {
                     val key = item.malId ?: item.anilistId
+                    val existing = choices[key]
                     choices[key] = MalEntryChoice(
                         malId = item.malId,
                         anilistId = item.anilistId,
                         title = item.title,
                         coverUrl = item.coverUrl,
                         format = item.format,
-                        episodes = item.episodes,
+                        episodes = item.episodes ?: existing?.episodes,
+                        onYourList = existing?.onYourList == true,
                     )
                 }
             } catch (e: Exception) {
@@ -113,12 +141,13 @@ class MalEntryPickerScreenModel(
             }
         }
 
+        // MyAnimeList knows the entries AniList doesn't have
         if (tracker.isLoggedIn) {
             try {
                 val results = if (isManga) {
-                    tracker.searchMangaTitles(query)
+                    tracker.searchMangaTitles(searchQuery(query))
                 } else {
-                    tracker.searchAnimeTitles(query)
+                    tracker.searchAnimeTitles(searchQuery(query))
                 }
                 val details = coroutineScope {
                     results.take(MAX_DETAIL_REQUESTS).map { (id, title) ->
@@ -134,15 +163,74 @@ class MalEntryPickerScreenModel(
                         coverUrl = detail?.cover_url?.takeIf { it.isNotBlank() } ?: existing?.coverUrl.orEmpty(),
                         format = detail?.publishing_type?.takeIf { it.isNotBlank() } ?: existing?.format,
                         episodes = detail?.total_episodes?.toInt()?.takeIf { it > 0 } ?: existing?.episodes,
-                        fromMal = true,
+                        onYourList = existing?.onYourList == true,
                     )
                 }
             } catch (e: Exception) {
-                // The list of MyAnimeList is not reachable, the AniList results are shown
+                // The list of MyAnimeList is not reachable, the other results are shown
             }
         }
 
-        return choices.values.toList()
+        return rank(choices.values.toList(), query)
+    }
+
+    /**
+     * The bare title - the decorations the extensions add only confuse the search engines.
+     */
+    private fun searchQuery(query: String): String =
+        MalTitleMatcher.clean(query).takeIf { it.isNotBlank() } ?: query
+
+    /**
+     * The order the entries are shown in.
+     *
+     * The entries of the user's own list come first, then the ones whose title fits the
+     * anime, then the ones with the same number of episodes - the seasons of a show have
+     * nearly the same title, but not the same number of episodes.
+     */
+    private suspend fun rank(choices: List<MalEntryChoice>, query: String): List<MalEntryChoice> {
+        val localEpisodes = if (isManga) null else localEpisodeCount()
+        return choices
+            .map { choice -> choice to score(choice, query, localEpisodes) }
+            .sortedWith(
+                compareByDescending<Pair<MalEntryChoice, Int>> { it.first.onYourList }
+                    .thenByDescending { it.second }
+                    .thenBy { it.first.title },
+            )
+            .map { it.first }
+    }
+
+    /**
+     * How well the entry fits the anime.
+     */
+    private fun score(choice: MalEntryChoice, query: String, localEpisodes: Int?): Int {
+        var score = MalTitleMatcher.score(query, choice.title)
+
+        // The number of episodes tells the seasons of a show apart - the titles of those are
+        // nearly the same, but the seasons have their own number of episodes.
+        val episodes = choice.episodes
+        if (localEpisodes != null && localEpisodes > 0 && episodes != null && episodes > 0) {
+            val difference = kotlin.math.abs(localEpisodes - episodes)
+            score += when {
+                difference == 0 -> 20
+                difference <= 2 -> 10
+                difference <= 10 -> 0
+                else -> -10
+            }
+        }
+
+        return score
+    }
+
+    /**
+     * The number of episodes the local anime has.
+     */
+    private suspend fun localEpisodeCount(): Int? {
+        val animeId = localAnimeId ?: return null
+        return try {
+            getEpisodes.await(animeId).size.takeIf { it > 0 }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     data class State(

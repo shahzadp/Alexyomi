@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.mal
 
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -113,5 +115,33 @@ class MalTitleMatcherTest {
         val tokens = MalTitleMatcher.tokens("Frieren: Beyond Journey's End")
         assertTrue(tokens.contains("frieren")) { "tokens were $tokens" }
         assertTrue(tokens.contains("beyond")) { "tokens were $tokens" }
+    }
+
+    @Test
+    fun `the same title is the same anime`() {
+        assertTrue(MalTitleMatcher.isSameTitle("One Piece", "One Piece"))
+    }
+
+    @Test
+    fun `the same season in another spelling is the same anime`() {
+        assertTrue(MalTitleMatcher.isSameTitle("One Piece Season 3", "One Piece 3rd Season"))
+    }
+
+    @Test
+    fun `another season is another anime`() {
+        assertFalse(MalTitleMatcher.isSameTitle("One Piece Season 3", "One Piece Season 4"))
+    }
+
+    @Test
+    fun `a sequel with another name is another anime`() {
+        // "Naruto" and "Naruto Shippuden" are two entries of the list
+        assertFalse(MalTitleMatcher.isSameTitle("Naruto", "Naruto Shippuden"))
+        assertFalse(MalTitleMatcher.isSameTitle("Bleach", "Bleach: Sennen Kessen-hen"))
+    }
+
+    @Test
+    fun `the decorations of the extensions are not part of the title`() {
+        assertEquals("sousou no frieren", MalTitleMatcher.clean("[Sub] Sousou no Frieren (TV)"))
+        assertEquals("one piece", MalTitleMatcher.clean("One Piece Sub"))
     }
 }
