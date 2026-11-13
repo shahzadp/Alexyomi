@@ -205,14 +205,18 @@ class AnimeScreenModel(
 
         observeDownloads()
 
-        // Keep the watched episodes in sync with MyAnimeList. This has to run when the
+        // Keep the read episodes in sync with MyAnimeList. This has to run when the
         // episodes are there, otherwise there is nothing to tick.
         screenModelScope.launchIO {
             getAnimeAndEpisodesAndSeasons.subscribe(animeId)
                 .distinctUntilChanged()
                 .flowWithLifecycle(lifecycle)
-                .collectLatest { (anime, episodes, _) ->
-                    syncMalProgress(anime)
+                .collect { (anime, episodes, _) ->
+                    // The lookup takes a moment, so it runs on its own - a new emission must
+                    // not cancel the one that is running.
+                    screenModelScope.launchIO {
+                        syncMalProgress(anime)
+                    }
                 }
         }
 

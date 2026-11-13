@@ -207,7 +207,7 @@ class MalListScreenModel(
             val afterSignature = fresh.mapTo(HashSet(), ::signature)
             if (beforeSignature == afterSignature) {
                 // Nothing new to update — skip the UI and the cache entirely
-                applyProgressToLocalEpisodes(fresh)
+                screenModelScope.launchIO { applyProgressToLocalEpisodes(fresh) }
                 return@refreshIfChanged false
             }
             // Something changed upstream — apply it, enriching only entries that lack totals
@@ -216,7 +216,7 @@ class MalListScreenModel(
             val complete = working.toImmutableList()
             MalListStore.write(mediaType, complete)
             mutableState.update { it.copy(entries = complete, loading = false, error = false) }
-            applyProgressToLocalEpisodes(complete)
+            screenModelScope.launchIO { applyProgressToLocalEpisodes(complete) }
             true
         } catch (e: Exception) {
             // Background check failed — keep showing the cache
@@ -264,7 +264,11 @@ class MalListScreenModel(
                 mutableState.update {
                     it.copy(loading = false, entries = complete, error = false)
                 }
-                applyProgressToLocalEpisodes(complete)
+                // The sync takes a moment, so it runs on its own - the list is shown right
+                // away and the episodes are ticked in the background.
+                screenModelScope.launchIO {
+                    applyProgressToLocalEpisodes(complete)
+                }
             } catch (e: Exception) {
                 mutableState.update { it.copy(loading = false, error = true) }
             }

@@ -396,7 +396,10 @@ object MalProgressSync {
     suspend fun applyAnimeProgress(animeId: Long, progress: Int) {
         if (progress <= 0) return
         val episodes = getEpisodes.await(animeId)
-        if (episodes.isEmpty()) return
+        if (episodes.isEmpty()) {
+            logEvent("Anime $animeId has no episodes yet, $progress could not be ticked")
+            return
+        }
 
         // The episodes that are within the progress
         var toUpdate = episodes.filter { !it.seen && it.episodeNumber >= 1.0 && it.episodeNumber <= progress }
@@ -420,7 +423,10 @@ object MalProgressSync {
     suspend fun applyMangaProgress(mangaId: Long, progress: Int) {
         if (progress <= 0) return
         val chapters = getChapters.await(mangaId)
-        if (chapters.isEmpty()) return
+        if (chapters.isEmpty()) {
+            logEvent("Manga $mangaId has no chapters yet, $progress could not be ticked")
+            return
+        }
 
         // The chapters that are within the progress
         var toUpdate = chapters.filter { !it.read && it.chapterNumber >= 1.0 && it.chapterNumber <= progress }
