@@ -36,6 +36,7 @@ It now walks several sources (`MalEntryResolver`):
 The entry page also falls back to MyAnimeList for the details when AniList doesn't know the
 entry (`MalAnimeInfoScreenModel.loadDetails`).
 
-Still open: the title comparison is a heuristic. A wrong match is possible for anime whose
-titles collide (a remake, a same-name sequel). A picker that lets the user pick the right entry
-would remove the guesswork.
+**Done:** the guesswork is gone. The comparison compares the season numbers of the titles, so
+"X 3rd Season" never matches "X Season 4". When nothing fits the title or several entries fit
+it equally well, the app opens the entry picker (`MalEntryPickerScreen`) and the user picks
+the entry — the app never opens an entry that could be a different anime.

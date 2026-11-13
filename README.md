@@ -16,7 +16,8 @@ MyAnimeList.
 - **Browse** — Seasonal, Top and search, backed by AniList's free API.
 - **Two-way progress sync** — watch an episode in the app and MyAnimeList's counter goes up;
   mark episodes as watched on MyAnimeList and they are ticked in the app. Nothing has to be
-  marked twice.
+  marked twice. A background job keeps the two in sync, so anime you never opened are ticked
+  as well.
 - **Downloads tab** — the download queue and everything downloaded in one place, with live
   progress, per-item play/delete and a media player picker.
 - **Built-in player** (mpv) with 720p and dubbed audio applied across your installed
