@@ -955,17 +955,17 @@ class MangaScreenModel(
             emptyList()
         }
 
-        val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID }
-        if (track == null) {
-            // Not linked yet - look the entry up, but not on every single update
-            val now = System.currentTimeMillis()
-            if (now - lastMalLinkAttempt < MAL_LINK_RETRY_INTERVAL) return
+        // The entry is looked up again every now and then, so a link that points at the wrong
+        // entry is corrected instead of being used forever.
+        val now = System.currentTimeMillis()
+        if (now - lastMalLinkAttempt >= MAL_LINK_RETRY_INTERVAL) {
             lastMalLinkAttempt = now
             linkWithMalEntry(manga, tracks)
             return
         }
 
-        // Apply the progress of the list to the local chapters
+        // Apply the progress of the entry that is linked already
+        val track = tracks.firstOrNull { it.trackerId == MalProgressSync.MAL_TRACKER_ID } ?: return
         val progress = MalProgressSync.applyProgressForManga(manga.id, track.remoteId)
         if (progress != null) {
             MalProgressSync.logEvent("Applied MAL progress $progress to manga ${manga.id}")
@@ -1007,7 +1007,7 @@ class MangaScreenModel(
         /**
          * How long to wait before the MyAnimeList entry is looked up again.
          */
-        private const val MAL_LINK_RETRY_INTERVAL = 30_000L
+        private const val MAL_LINK_RETRY_INTERVAL = 5_000L
     }
 
     sealed interface State {
