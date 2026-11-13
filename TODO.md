@@ -30,18 +30,21 @@ Only the other direction is automatic: watching an episode here updates the coun
 list entry the user picked. If the user wants the episodes they watched elsewhere ticked as
 well, they mark them in the app.
 
-## 3. The app never picks an entry on its own
+## 3. The entry of MyAnimeList is linked automatically, letter for letter only
 
-The "Add to MAL" button never opens an entry on its own anymore. The title of an anime in an
-extension is not proof of anything - extensions carry other titles, decorations, and sometimes
-a completely different show than the one the user looked at. So every tap shows the picker
-(`MalEntryPickerScreen`), where the user picks the entry:
+"Add to MAL" links on its own only when the local title and an entry match letter for letter,
+**seasons included**. "One Piece 3rd Season" only links to the season 3 entry; other seasons
+stay unlinked. The linking happens against:
 
-- the entry the app has linked before is shown first and marked **Linked** - a wrong link from
-  before this change is visible and can be changed to any entry on MyAnimeList
-- the entries of the list of the user come next and are marked **On your list**
-- everything else comes from MyAnimeList and AniList, ranked by the title and by the number of
-  episodes - the seasons of a show have nearly the same title but not the same episode count
+1. the entries of the user's own list (known offline, carries the status and progress)
+2. MyAnimeList's own search - the entries that are not on the list
+3. AniList's search, whose romaji title bridges the language gap
 
-The entry the user picks is the one that gets linked, so the progress of the app and the
-progress of the list are the same. Nothing else is opened, ever.
+Every other case - a linked entry that doesn't match letter for letter, nothing matching -
+opens the picker. The picker shows the linked entry (marked **Linked**), the user's list
+entries (marked **On your list**) and the search results ranked by title and by the number of
+episodes. The entry the user picks is the one that gets linked.
+
+Strict matching means an anime is never linked to an entry that merely leans the same way -
+"One Piece" (the extension title that drops the season) doesn't link to a random season of
+the series; the user picks it once, and it stays linked.
