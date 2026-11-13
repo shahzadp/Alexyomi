@@ -182,20 +182,21 @@ object MalProgressSync {
                 }
             }
 
-            // Link the anime that have no link yet
-            val unlinkedEntries = entries.filter { it.id !in tracksByRemoteId.keys }
-            if (unlinkedEntries.isEmpty()) return
-
+            // Link the local anime that have no link yet. The same anime can be in several
+            // extensions - each of them gets its own link, so the filter is on the anime and
+            // not on the entry.
             val local = localAnimeTitles()
             if (local.isEmpty()) return
+            val unlinkedAnime = local.filter { it.first !in linkedAnimeIds }
+            if (unlinkedAnime.isEmpty()) return
 
             // The best entry for every local anime. The titles of the extensions are usually
             // the romaji ones, so the AniList titles are used as well.
-            val anilistTitles = anilistTitlesOf(unlinkedEntries.map { it.id.toInt() })
+            val anilistTitles = anilistTitlesOf(entries.map { it.id.toInt() })
             val bestEntryFor = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
-            for (entry in unlinkedEntries) {
+            for (entry in entries) {
                 val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
-                for ((animeId, animeTitle) in local) {
+                for ((animeId, animeTitle) in unlinkedAnime) {
                     val score = maxOf(
                         MalTitleMatcher.score(entry.title, animeTitle),
                         MalTitleMatcher.score(romaji, animeTitle),
@@ -277,19 +278,20 @@ object MalProgressSync {
                 }
             }
 
-            val unlinkedEntries = entries.filter { it.id !in tracksByRemoteId.keys }
-            if (unlinkedEntries.isEmpty()) return
-
+            // Link the local manga that have no link yet. The filter is on the manga and not
+            // on the entry - the same manga can be in several extensions.
             val local = localMangaTitles()
             if (local.isEmpty()) return
+            val unlinkedManga = local.filter { it.first !in linkedMangaIds }
+            if (unlinkedManga.isEmpty()) return
 
             // The best entry for every local manga. The extensions usually show the romaji
             // title, so the AniList titles are used as well.
-            val anilistTitles = anilistTitlesOf(unlinkedEntries.map { it.id.toInt() })
+            val anilistTitles = anilistTitlesOf(entries.map { it.id.toInt() })
             val bestEntryFor = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
-            for (entry in unlinkedEntries) {
+            for (entry in entries) {
                 val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
-                for ((mangaId, mangaTitle) in local) {
+                for ((mangaId, mangaTitle) in unlinkedManga) {
                     val score = maxOf(
                         MalTitleMatcher.score(entry.title, mangaTitle),
                         MalTitleMatcher.score(romaji, mangaTitle),

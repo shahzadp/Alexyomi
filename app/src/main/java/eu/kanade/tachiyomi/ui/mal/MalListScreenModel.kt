@@ -212,11 +212,16 @@ class MalListScreenModel(
             }
             // Something changed upstream — apply it, enriching only entries that lack totals
             val working = fresh.toMutableList()
-            enrichMissing(working, mediaType)
-            val complete = working.toImmutableList()
-            MalListStore.write(mediaType, complete)
-            mutableState.update { it.copy(entries = complete, loading = false, error = false) }
-            screenModelScope.launchIO { applyProgressToLocalEpisodes(complete) }
+            MalListStore.write(mediaType, working)
+            mutableState.update { it.copy(entries = working.toImmutableList(), loading = false, error = false) }
+            screenModelScope.launchIO {
+                // The details and the sync take a moment, they run in the background
+                enrichMissing(working, mediaType)
+                val complete = working.toImmutableList()
+                MalListStore.write(mediaType, complete)
+                mutableState.update { it.copy(entries = complete) }
+                applyProgressToLocalEpisodes(complete)
+            }
             true
         } catch (e: Exception) {
             // Background check failed — keep showing the cache
@@ -255,18 +260,20 @@ class MalListScreenModel(
                         return@launchIO
                     }
                 }
-                // MAL node fields (episode/chapter count, airing status) are not always
-                // present — fill gaps from AniList's free API in batches.
-                val working = merged.toMutableList()
-                enrichMissing(working, mediaType)
-                val complete = working.toImmutableList()
-                MalListStore.write(mediaType, complete)
+                // The list is shown right away - the missing details and the sync run in the
+                // background, they take a few seconds.
+                MalListStore.write(mediaType, merged)
                 mutableState.update {
-                    it.copy(loading = false, entries = complete, error = false)
+                    it.copy(loading = false, entries = merged.toImmutableList(), error = false)
                 }
-                // The sync takes a moment, so it runs on its own - the list is shown right
-                // away and the episodes are ticked in the background.
                 screenModelScope.launchIO {
+                    // MAL node fields (episode/chapter count, airing status) are not always
+                    // present — fill gaps from AniList's free API in batches.
+                    val working = merged.toMutableList()
+                    enrichMissing(working, mediaType)
+                    val complete = working.toImmutableList()
+                    MalListStore.write(mediaType, complete)
+                    mutableState.update { it.copy(entries = complete) }
                     applyProgressToLocalEpisodes(complete)
                 }
             } catch (e: Exception) {
