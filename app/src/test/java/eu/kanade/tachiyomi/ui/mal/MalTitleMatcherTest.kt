@@ -50,4 +50,18 @@ class MalTitleMatcherTest {
         val score = MalTitleMatcher.score("One Piece", "Bleach")
         assertTrue(score < MalTitleMatcher.MIN_SCORE) { "score was $score" }
     }
+
+    @Test
+    fun `the english title of a romaji one does not match`() {
+        // The extensions show "Shingeki no Kyojin", MyAnimeList "Attack on Titan" - the title
+        // comparison alone cannot bridge that, the AniList title is needed.
+        val score = MalTitleMatcher.score("Shingeki no Kyojin", "Attack on Titan")
+        assertTrue(score < MalTitleMatcher.MIN_SCORE) { "score was $score" }
+    }
+
+    @Test
+    fun `the romaji title of an english one matches`() {
+        val score = MalTitleMatcher.score("Shingeki no Kyojin", "Shingeki no Kyojin")
+        assertTrue(score >= 100) { "score was $score" }
+    }
 }

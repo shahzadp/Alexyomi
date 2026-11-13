@@ -45,7 +45,18 @@ object MalEntryResolver {
         val malId: Int?,
         val anilistId: Int?,
         val title: String,
+        /** The romaji title, the extensions usually show that one. */
+        val titleRomaji: String = "",
     )
+
+    /**
+     * The best score of the candidate against the title.
+     */
+    private fun Candidate.scoreFor(title: String): Int {
+        val byTitle = MalTitleMatcher.score(title, this.title)
+        val byRomaji = if (titleRomaji.isBlank()) 0 else MalTitleMatcher.score(title, titleRomaji)
+        return maxOf(byTitle, byRomaji)
+    }
 
     suspend fun forAnime(animeId: Long, title: String, tracks: List<AnimeTrack>): MalEntryIds? {
         val malId = tracks.find { it.trackerId == MAL_TRACKER_ID }?.remoteId?.toInt()
@@ -91,11 +102,13 @@ object MalEntryResolver {
             return MalEntryIds(anilistId = null, malId = listMatch.item)
         }
 
-        // AniList knows the mapping between both - take its first hit that fits the title
+        // AniList knows the mapping between both. Its search is ranked well, so a hit that
+        // fits the title wins - and the first hit is the fallback, because the extensions
+        // often show the romaji title while AniList answers with the english one.
         val anilistResults = searchByAnilist(title)
-        val anilistMatch = anilistResults.firstOrNull {
-            MalTitleMatcher.score(title, it.title) >= MalTitleMatcher.MIN_SCORE
-        }
+        val anilistMatch = anilistResults
+            .firstOrNull { it.scoreFor(title) >= MalTitleMatcher.MIN_SCORE }
+            ?: anilistResults.firstOrNull()
         if (anilistMatch != null) {
             MalProgressSync.logEvent(
                 "Matched '$title' with MyAnimeList entry ${anilistMatch.malId} " +
@@ -127,7 +140,12 @@ object MalEntryResolver {
             val api = AnilistBrowseApi(Injekt.get<NetworkHelper>().client)
             val result = withTimeout(8.seconds) { api.searchAnime(title) }
             result.items.map {
-                Candidate(malId = it.malId, anilistId = it.anilistId, title = it.title)
+                Candidate(
+                    malId = it.malId,
+                    anilistId = it.anilistId,
+                    title = it.title,
+                    titleRomaji = it.titleRomaji,
+                )
             }
         } catch (e: CancellationException) {
             throw e

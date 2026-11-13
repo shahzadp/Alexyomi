@@ -329,6 +329,7 @@ class AnilistBrowseApi(
                   Page(perPage: 50) {
                     media(idMal_in: ${'$'}ids, type: ANIME, isAdult: false) {
                       id idMal episodes status format season seasonYear
+                      title { romaji english }
                     }
                   }
                 }
@@ -361,6 +362,8 @@ class AnilistBrowseApi(
                     format = media.format,
                     season = media.season?.lowercase()?.replaceFirstChar { it.uppercase() },
                     seasonYear = media.seasonYear,
+                    titleRomaji = media.title?.romaji.orEmpty(),
+                    titleEnglish = media.title?.english.orEmpty(),
                 )
             }
         }
@@ -392,6 +395,8 @@ class AnilistBrowseApi(
             anilistId = id,
             malId = idMal,
             title = title.english?.takeIf { it.isNotBlank() } ?: title.romaji.orEmpty(),
+            // The extensions usually show the romaji title, so it is kept for the lookup
+            titleRomaji = title.romaji.orEmpty(),
             coverUrl = coverImage.large ?: coverImage.medium.orEmpty(),
             score = averageScore,
             episodes = episodes,
@@ -430,6 +435,8 @@ data class AnilistBrowseItem(
     val anilistId: Int,
     val malId: Int?,
     val title: String,
+    /** The romaji title, the extensions usually show that one. */
+    val titleRomaji: String = "",
     val coverUrl: String,
     /** AniList score, 0–100. Null when unknown. */
     val score: Int?,
@@ -451,6 +458,9 @@ data class AnilistMediaStatus(
     val format: String?,
     val season: String?,
     val seasonYear: Int?,
+    /** The romaji title, the extensions usually show that one. */
+    val titleRomaji: String = "",
+    val titleEnglish: String = "",
 )
 
 data class AnilistAnimeDetails(

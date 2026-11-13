@@ -1,11 +1,14 @@
 package eu.kanade.tachiyomi.ui.mal
 
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.data.track.anilist.AnilistBrowseApi
+import eu.kanade.tachiyomi.data.track.anilist.AnilistMediaStatus
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListAnimeItemStatus
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListMangaItemStatus
 import kotlinx.coroutines.flow.first
 import logcat.LogPriority
+import eu.kanade.tachiyomi.network.NetworkHelper
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.entries.manga.repository.MangaRepository
@@ -182,11 +185,17 @@ object MalProgressSync {
             val local = localAnimeTitles()
             if (local.isEmpty()) return
 
-            // The best entry for every local anime
+            // The best entry for every local anime. The titles of the extensions are usually
+            // the romaji ones, so the AniList titles are used as well.
+            val anilistTitles = anilistTitlesOf(unlinkedEntries.map { it.id.toInt() })
             val bestEntryFor = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
             for (entry in unlinkedEntries) {
+                val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
                 for ((animeId, animeTitle) in local) {
-                    val score = MalTitleMatcher.score(entry.title, animeTitle)
+                    val score = maxOf(
+                        MalTitleMatcher.score(entry.title, animeTitle),
+                        MalTitleMatcher.score(romaji, animeTitle),
+                    )
                     if (score < MalTitleMatcher.MIN_SCORE) continue
                     val current = bestEntryFor[animeId]
                     if (current == null || score > current.score) {
@@ -231,6 +240,19 @@ object MalProgressSync {
     }
 
     /**
+     * The AniList data of the entries, which carries the romaji titles.
+     */
+    private suspend fun anilistTitlesOf(malIds: List<Int>): Map<Int, AnilistMediaStatus> {
+        if (malIds.isEmpty()) return emptyMap()
+        return try {
+            AnilistBrowseApi(Injekt.get<NetworkHelper>().client).listStatusByMalId(malIds)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "Failed to load the AniList data of the list" }
+            emptyMap()
+        }
+    }
+
+    /**
      * Applies the progress of the user's manga list to the local chapters of the linked
      * mangas, and links the ones that are not linked yet.
      */
@@ -259,11 +281,17 @@ object MalProgressSync {
             val local = localMangaTitles()
             if (local.isEmpty()) return
 
-            // The best entry for every local manga
+            // The best entry for every local manga. The extensions usually show the romaji
+            // title, so the AniList titles are used as well.
+            val anilistTitles = anilistTitlesOf(unlinkedEntries.map { it.id.toInt() })
             val bestEntryFor = mutableMapOf<Long, MalTitleMatcher.Match<MalListScreenModel.MalListEntry>>()
             for (entry in unlinkedEntries) {
+                val romaji = anilistTitles[entry.id.toInt()]?.titleRomaji.orEmpty()
                 for ((mangaId, mangaTitle) in local) {
-                    val score = MalTitleMatcher.score(entry.title, mangaTitle)
+                    val score = maxOf(
+                        MalTitleMatcher.score(entry.title, mangaTitle),
+                        MalTitleMatcher.score(romaji, mangaTitle),
+                    )
                     if (score < MalTitleMatcher.MIN_SCORE) continue
                     val current = bestEntryFor[mangaId]
                     if (current == null || score > current.score) {
