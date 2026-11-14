@@ -1,18 +1,26 @@
 package eu.kanade.presentation.more.settings.screen
 
+import android.content.Intent
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.util.system.GLUtil
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
+import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
@@ -70,6 +78,7 @@ object SettingsReaderScreen : SearchableSettings {
             getWebtoonGroup(readerPreferences = readerPref),
             getNavigationGroup(readerPreferences = readerPref),
             getActionsGroup(readerPreferences = readerPref),
+            getDecoderGroup(),
         )
     }
 
@@ -439,6 +448,59 @@ object SettingsReaderScreen : SearchableSettings {
                     preference = readerPreferences.folderPerManga(),
                     title = stringResource(MR.strings.pref_create_folder_per_manga),
                     subtitle = stringResource(MR.strings.pref_create_folder_per_manga_summary),
+                ),
+            ),
+        )
+    }
+
+    @Composable
+    private fun getDecoderGroup(): Preference.PreferenceGroup {
+        val context = LocalContext.current
+        val basePreferences = remember { Injekt.get<BasePreferences>() }
+
+        val chooseColorProfile = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            uri?.let {
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(uri, flags)
+                basePreferences.displayProfile().set(uri.toString())
+            }
+        }
+        return Preference.PreferenceGroup(
+            title = stringResource(AYMR.strings.pref_category_decoder),
+            preferenceItems = persistentListOf(
+                Preference.PreferenceItem.ListPreference(
+                    preference = basePreferences.hardwareBitmapThreshold(),
+                    entries = GLUtil.CUSTOM_TEXTURE_LIMIT_OPTIONS
+                        .mapIndexed { index, option ->
+                            val display = if (index == 0) {
+                                stringResource(MR.strings.pref_hardware_bitmap_threshold_default, option)
+                            } else {
+                                option.toString()
+                            }
+                            option to display
+                        }
+                        .toMap()
+                        .toImmutableMap(),
+                    title = stringResource(MR.strings.pref_hardware_bitmap_threshold),
+                    subtitleProvider = { value, options ->
+                        stringResource(MR.strings.pref_hardware_bitmap_threshold_summary, options[value].orEmpty())
+                    },
+                    enabled = !ImageUtil.HARDWARE_BITMAP_UNSUPPORTED &&
+                        GLUtil.DEVICE_TEXTURE_LIMIT > GLUtil.SAFE_TEXTURE_LIMIT,
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = basePreferences.alwaysDecodeLongStripWithSSIV(),
+                    title = stringResource(MR.strings.pref_always_decode_long_strip_with_ssiv_2),
+                    subtitle = stringResource(MR.strings.pref_always_decode_long_strip_with_ssiv_summary),
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.pref_display_profile),
+                    subtitle = basePreferences.displayProfile().get(),
+                    onClick = {
+                        chooseColorProfile.launch(arrayOf("*/*"))
+                    },
                 ),
             ),
         )
