@@ -89,8 +89,8 @@ The title matching (`MalTitleMatcher`) is the delicate part: the seasons of a sh
 the same title, so a title that only adds a season marker does not match. There are unit tests
 for it in `app/src/test/java/eu/kanade/tachiyomi/ui/mal/`.
 
-When something is off, the debug info (Settings → Advanced → dump crash logs) shows the state
-of the sync and every step it took.
+When something is off, the debug info (Settings → About → dump crash logs) shows the state of
+the sync and every step it took.
 
 ### Source mirrors
 
