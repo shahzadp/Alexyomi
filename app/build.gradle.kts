@@ -9,7 +9,6 @@ plugins {
     id("mihon.android.application.compose")
     id("com.github.zellius.shortcut-helper")
     kotlin("plugin.serialization")
-    alias(libs.plugins.aboutLibraries)
 }
 
 shortcutHelper.setFilePath("./shortcuts.xml")
@@ -43,8 +42,8 @@ android {
     defaultConfig {
         applicationId = "xyz.jmir.tachiyomi.mi"
 
-        versionCode = 137
-        versionName = "0.18.2.6"
+        versionCode = 138
+        versionName = "0.18.2.7"
 
         // The scheme the tracker logins redirect to. It has to match the one that is
         // registered at the tracker, so only the release build can use it - otherwise two
@@ -311,7 +310,6 @@ dependencies {
     }
     implementation(libs.insetter)
     implementation(libs.bundles.richtext)
-    implementation(libs.aboutLibraries.compose)
     implementation(libs.bundles.voyager)
     implementation(libs.compose.materialmotion)
     implementation(libs.swipe)

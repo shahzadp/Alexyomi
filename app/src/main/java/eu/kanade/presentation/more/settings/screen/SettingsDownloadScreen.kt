@@ -20,8 +20,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadCache
+import eu.kanade.tachiyomi.data.download.manga.MangaDownloadCache
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
@@ -45,6 +49,7 @@ object SettingsDownloadScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
+        val context = LocalContext.current
         val downloadPreferences = remember { Injekt.get<DownloadPreferences>() }
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val speedLimit by downloadPreferences.downloadSpeedLimit().collectAsState()
@@ -97,6 +102,15 @@ object SettingsDownloadScreen : SearchableSettings {
             getExternalDownloaderGroup(
                 downloadPreferences = downloadPreferences,
                 basePreferences = basePreferences,
+            ),
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(MR.strings.pref_invalidate_download_cache),
+                subtitle = stringResource(AYMR.strings.pref_invalidate_download_cache_summary),
+                onClick = {
+                    Injekt.get<MangaDownloadCache>().invalidateCache()
+                    Injekt.get<AnimeDownloadCache>().invalidateCache()
+                    context.toast(MR.strings.download_cache_invalidated)
+                },
             ),
         )
     }
