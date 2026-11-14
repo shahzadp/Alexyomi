@@ -52,7 +52,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.UpIcon
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.about.AboutScreen
-import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsAdvancedScreen
+import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsMpvScreen
 import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsAudioScreen
 import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsDecoderScreen
 import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsGesturesScreen
@@ -324,7 +324,7 @@ private val playerSettingScreens = listOf(
     PlayerSettingsDecoderScreen,
     PlayerSettingsSubtitleScreen,
     PlayerSettingsAudioScreen,
-    PlayerSettingsAdvancedScreen,
+    PlayerSettingsMpvScreen,
 )
 
 private val settingScreens = listOf(

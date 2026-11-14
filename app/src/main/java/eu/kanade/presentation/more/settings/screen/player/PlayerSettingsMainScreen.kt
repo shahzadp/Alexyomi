@@ -9,12 +9,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Audiotrack
-import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Gesture
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SettingsApplications
 import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.LocalContentColor
@@ -41,6 +41,7 @@ import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.more.settings.screen.SettingsSearchScreen
 import eu.kanade.presentation.more.settings.screen.player.custombutton.PlayerSettingsCustomButtonScreen
 import eu.kanade.presentation.more.settings.screen.player.editor.PlayerSettingsEditorScreen
+import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsMpvScreen
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
@@ -225,10 +226,10 @@ class PlayerSettingsMainScreen(private val mainSettings: Boolean) : Screen() {
             screen = PlayerSettingsEditorScreen,
         ),
         Item(
-            titleRes = AYMR.strings.pref_player_advanced,
-            subtitleRes = AYMR.strings.pref_player_advanced_summary,
-            icon = Icons.Outlined.Code,
-            screen = PlayerSettingsAdvancedScreen,
+            titleRes = AYMR.strings.pref_player_custom_mpv,
+            subtitleRes = AYMR.strings.pref_player_custom_mpv_summary,
+            icon = Icons.Outlined.SettingsApplications,
+            screen = PlayerSettingsMpvScreen,
         ),
     )
 }

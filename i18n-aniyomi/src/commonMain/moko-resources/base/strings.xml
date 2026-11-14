@@ -257,8 +257,8 @@
     <string name="pref_player_torrents_proxy_url_invalid_uri">Invalid uri</string>
     <string name="pref_player_torrents_proxy_url_invalid_protocol">Unsupported protocol: \"%s\"</string>
     <!-- Player settings - Advanced -->
-    <string name="pref_player_advanced">Advanced</string>
-    <string name="pref_player_advanced_summary">User files, mpv.conf, input.conf</string>
+    <string name="pref_player_custom_mpv">Custom MPV files</string>
+    <string name="pref_player_custom_mpv_summary">User files, mpv.conf, input.conf</string>
     <string name="pref_mpv_user_files">Use user MPV files</string>
     <string name="pref_mpv_user_files_summary">Use files in mpv-config directory</string>
     <string name="pref_mpv_conf">Edit MPV configuration file for further player settings</string>

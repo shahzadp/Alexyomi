@@ -13,11 +13,17 @@ import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-object PlayerSettingsAdvancedScreen : SearchableSettings {
+/**
+ * Custom mpv configuration - the user files directory plus the two hand-editable config files.
+ *
+ * Everything this page holds was behind an "Advanced" row in the player settings. The Advanced
+ * row is gone; the page itself stays, because the two config files are genuinely useful.
+ */
+object PlayerSettingsMpvScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
-    override fun getTitleRes() = AYMR.strings.pref_player_advanced
+    override fun getTitleRes() = AYMR.strings.pref_player_custom_mpv
 
     @Composable
     override fun getPreferences(): List<Preference> {
