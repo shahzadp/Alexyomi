@@ -91,6 +91,7 @@ private class MoviesWebChromeClient : AccompanistWebChromeClient() {
 @Composable
 fun MoviesTabScreen() {
     val context = LocalContext.current
+    remember { MovieAdBlockList.load(context.applicationContext) }
     val scope = rememberCoroutineScope()
     val screenModel = remember { MoviesScreenModel() }
 
@@ -223,13 +224,17 @@ fun MoviesTabScreen() {
             val navigator = rememberWebViewNavigator()
             val chromeClient = remember { MoviesWebChromeClient() }
             val client = remember(currentUrl, streams) {
+                val topHost = Uri.parse(currentUrl).host
                 object : AccompanistWebViewClient() {
                     override fun shouldInterceptRequest(
                         view: android.webkit.WebView,
                         request: WebResourceRequest?,
                     ): WebResourceResponse? {
                         val host = request?.url?.host
-                        if (host != null && isBlockedHost(host)) {
+                        val initiator = refererHost(request) ?: topHost
+                        if (host != null &&
+                            (isBlockedHost(host) || MovieAdBlockList.isBlocked(host, initiator))
+                        ) {
                             // Cut the ad off before it fires.
                             return emptyResponse()
                         }
@@ -245,7 +250,10 @@ fun MoviesTabScreen() {
                         request: WebResourceRequest?,
                     ): Boolean {
                         val host = request?.url?.host
-                        if (host != null && isBlockedHost(host)) {
+                        val initiator = refererHost(request) ?: topHost
+                        if (host != null &&
+                            (isBlockedHost(host) || MovieAdBlockList.isBlocked(host, initiator))
+                        ) {
                             // Redirect/jump to an ad — kill it, stay on the movie page.
                             return true
                         }
@@ -255,6 +263,23 @@ fun MoviesTabScreen() {
                             return true
                         }
                         return super.shouldOverrideUrlLoading(view, request)
+                    }
+
+                    override fun onPageStarted(
+                        view: android.webkit.WebView,
+                        url: String?,
+                        favicon: android.graphics.Bitmap?,
+                    ) {
+                        super.onPageStarted(view, url, favicon)
+                        view.evaluateJavascript(AD_SHIM_JS, null)
+                    }
+
+                    override fun onPageFinished(
+                        view: android.webkit.WebView,
+                        url: String?,
+                    ) {
+                        super.onPageFinished(view, url)
+                        view.evaluateJavascript(AD_SHIM_JS, null)
                     }
                 }
             }
@@ -304,6 +329,53 @@ fun MoviesTabScreen() {
         }
     }
 }
+
+// Injected into every page: neuter window.open (how pirate sites pop ads) and
+// hide the ad elements they inject into their own pages. uBlock-style cosmetic filtering.
+private const val AD_SHIM_JS = """
+(function () {
+  if (window.__alexyomiBlock) return;
+  window.__alexyomiBlock = true;
+  try {
+    var blocked = function () { return null; };
+    try {
+      Object.defineProperty(window, 'open', { value: blocked, writable: false, configurable: false });
+    } catch (e) {
+      window.open = blocked;
+    }
+  } catch (e) {}
+  function hideAds () {
+    var sels = [
+      'ins.adsbygoogle', '.adsbygoogle',
+      '.advertisement', '.advertisement-banner', '.ad-banner', '.ad-container',
+      '.ads-wrapper', '.ad-wrapper', '.sponsored-ad', '.float-ad', '#float-ad',
+      '[class*="popunder" i]', '[class*="pop-under" i]', '[class*="float-ad" i]',
+      '[class*="ad-container" i]', '[class*="ad-wrapper" i]', '[class*="ads-wrapper" i]',
+      '[class*="sponsored-ad" i]', '[class*="preroll-ad" i]',
+      '[id*="float-ad" i]', '[id*="ad-container" i]', '[id*="ads-wrapper" i]'
+    ];
+    for (var i = 0; i < sels.length; i++) {
+      try {
+        var nodes = document.querySelectorAll(sels[i]);
+        for (var j = 0; j < nodes.length; j++) {
+          if (nodes[j].style.display !== 'none') {
+            nodes[j].style.setProperty('display', 'none', 'important');
+          }
+        }
+      } catch (e) {}
+    }
+  }
+  try {
+    var observer = new MutationObserver(hideAds);
+    observer.observe(document.documentElement || document, {
+      childList: true,
+      subtree: true
+    });
+  } catch (e) {}
+  hideAds();
+  document.addEventListener('DOMContentLoaded', hideAds);
+})();
+"""
 
 private fun emptyResponse(): WebResourceResponse =
     WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
