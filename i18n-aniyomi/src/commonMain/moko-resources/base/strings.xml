@@ -638,6 +638,11 @@
     <string name="show_episode_previews">Episode thumbnails</string>
     <string name="show_episode_summaries">Episode summaries</string>
     <string name="label_mal">MAL</string>
+    <string name="label_movies">Movies</string>
+    <string name="movies_play_in_alexyomi">Play in Alexyomi</string>
+    <string name="movies_search_hint">Search or type a URL</string>
+    <string name="movies_empty_title">Movies</string>
+    <string name="movies_empty_summary">Search for a title, or paste a link to a movie — it plays inside Alexyomi.</string>
     <string name="mal_my_list">My List</string>
     <string name="mal_seasonal">Season</string>
     <string name="mal_top">Top</string>

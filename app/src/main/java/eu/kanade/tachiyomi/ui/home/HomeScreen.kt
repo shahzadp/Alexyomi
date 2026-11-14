@@ -42,6 +42,7 @@ import eu.kanade.tachiyomi.ui.download.DownloadsTab
 import eu.kanade.tachiyomi.ui.history.HistoriesTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.mal.MalTab
+import eu.kanade.tachiyomi.ui.movies.MoviesTab
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -74,6 +75,7 @@ object HomeScreen : Screen() {
         MalTab,
         BrowseTab,
         DownloadsTab,
+        MoviesTab,
         MoreTab,
     )
 

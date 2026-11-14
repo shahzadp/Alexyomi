@@ -58,6 +58,7 @@ class AndroidAnimeSourceManager(
                                 Injekt.get(),
                                 Injekt.get(),
                             ),
+                            MoviesSource.ID to MoviesSource(),
                         ),
                     )
                     extensions.forEach { extension ->

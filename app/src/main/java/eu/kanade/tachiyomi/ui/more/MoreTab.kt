@@ -21,7 +21,7 @@ data object MoreTab : Tab {
         @Composable
         get() {
             return TabOptions(
-                index = 3u,
+                index = 4u,
                 title = stringResource(MR.strings.label_settings),
                 icon = painterResource(R.drawable.ic_settings_24dp),
             )
