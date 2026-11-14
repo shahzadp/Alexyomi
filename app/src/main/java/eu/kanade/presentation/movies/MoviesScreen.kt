@@ -2,8 +2,9 @@ package eu.kanade.presentation.movies
 
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
-import android.webkit.WebView
 import android.net.Uri
+import android.os.Message
+import java.io.ByteArrayInputStream
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.kevinnzou.web.AccompanistWebChromeClient
 import com.kevinnzou.web.AccompanistWebViewClient
 import com.kevinnzou.web.LoadingState
 import com.kevinnzou.web.WebView
@@ -74,6 +76,16 @@ private class MovieStreams {
     fun clear() {
         _streams.value = emptyList()
     }
+}
+
+/** Popups are blocked outright; they are how pirate sites spam ads. */
+private class MoviesWebChromeClient : AccompanistWebChromeClient() {
+    override fun onCreateWindow(
+        view: android.webkit.WebView?,
+        isDialog: Boolean,
+        isUserGesture: Boolean,
+        resultMsg: Message?,
+    ): Boolean = false
 }
 
 @Composable
@@ -209,16 +221,17 @@ fun MoviesTabScreen() {
             val currentUrl = url!!
             val webState = rememberWebViewState(url = currentUrl)
             val navigator = rememberWebViewNavigator()
+            val chromeClient = remember { MoviesWebChromeClient() }
             val client = remember(currentUrl, streams) {
                 object : AccompanistWebViewClient() {
                     override fun shouldInterceptRequest(
-                        view: WebView,
+                        view: android.webkit.WebView,
                         request: WebResourceRequest?,
                     ): WebResourceResponse? {
                         val host = request?.url?.host
                         if (host != null && isBlockedHost(host)) {
                             // Cut the ad off before it fires.
-                            return WebResourceResponse("text/plain", "utf-8", null)
+                            return emptyResponse()
                         }
                         val requestUrl = request?.url?.toString().orEmpty()
                         if (isStreamUrl(requestUrl) && requestUrl !in streams.streams) {
@@ -228,9 +241,14 @@ fun MoviesTabScreen() {
                     }
 
                     override fun shouldOverrideUrlLoading(
-                        view: WebView?,
+                        view: android.webkit.WebView?,
                         request: WebResourceRequest?,
                     ): Boolean {
+                        val host = request?.url?.host
+                        if (host != null && isBlockedHost(host)) {
+                            // Redirect/jump to an ad — kill it, stay on the movie page.
+                            return true
+                        }
                         val requestUrl = request?.url?.toString().orEmpty()
                         if (isStreamUrl(requestUrl)) {
                             scope.launch { screenModel.playMovie(context, requestUrl, requestUrl) }
@@ -251,10 +269,11 @@ fun MoviesTabScreen() {
                 modifier = Modifier.fillMaxSize(),
                 navigator = navigator,
                 client = client,
+                chromeClient = chromeClient,
                 onCreated = { webView ->
                     webView.setDefaultSettings()
                     if (BuildConfig.DEBUG) {
-                        WebView.setWebContentsDebuggingEnabled(true)
+                        android.webkit.WebView.setWebContentsDebuggingEnabled(true)
                     }
                 },
             )
@@ -286,50 +305,60 @@ fun MoviesTabScreen() {
     }
 }
 
+private fun emptyResponse(): WebResourceResponse =
+    WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+
 private fun isBlockedHost(host: String): Boolean {
-    val h = host.lowercase()
-    if (h in BLOCKED_DOMAINS) return true
-    return BLOCKED_SUFFIXES.any { h.endsWith(it) }
+    val h = host.lowercase().trimEnd('.')
+    return BLOCKED_HOSTS.any { h == it || h.endsWith(".$it") }
 }
 
-private val BLOCKED_DOMAINS = setOf(
-    "adnxs.com",
-    "adcolony.com",
-    "adroll.com",
-    "adsrvr.org",
-    "adthrive.com",
-    "bttrack.com",
-    "criteo.com",
-    "criteo.net",
-    "doubleclick.net",
-    "googleadservices.com",
-    "googlesyndication.com",
-    "googletagmanager.com",
-    "googletagservices.com",
-    "mopub.com",
-    "moatads.com",
-    "openx.net",
-    "outbrain.com",
-    "pubmatic.com",
-    "quantserve.com",
-    "rubiconproject.com",
-    "serving-sys.com",
-    "sharethis.com",
-    "scorecardresearch.com",
-    "taboola.com",
-    "yieldmanager.com",
-    "yieldmo.com",
-)
-
-private val BLOCKED_SUFFIXES = listOf(
-    ".googletagmanager.com",
-    ".googlesyndication.com",
-    ".doubleclick.net",
-    ".criteo.com",
-    ".outbrain.com",
-    ".taboola.com",
-    ".moatads.com",
-    ".yieldmo.com",
+private val BLOCKED_HOSTS = setOf(
+    // --- Mainstream ad stacks / RTB exchanges (Google, DoubleClick & co.) ---
+    "adnxs.com", "doubleclick.net", "2mdn.net", "googleadservices.com", "googlesyndication.com",
+    "googletagmanager.com", "googletagservices.com", "pagead2.googlesyndication.com", "adsensecustomsearchads.com",
+    "advertising.com", "adsymptotic.com", "adsafeprotected.com", "adcolony.com", "adroll.com", "adsrvr.org",
+    "criteo.com", "criteo.net", "casalemedia.com", "bidswitch.net", "adform.net", "smartadserver.com",
+    "indexww.com", "moatads.com", "serving-sys.com", "yieldmanager.com", "yieldmo.com", "quantserve.com",
+    "scorecardresearch.com", "sharethis.com", "pubmatic.com", "rubiconproject.com", "betrad.com", "openx.net",
+    "contextweb.com", "lijit.com", "sovrn.com", "adthrive.com", "bttrack.com",
+    "mopub.com", "applovin.com", "inmobi.com", "smaato.com", "startapp.com", "flurry.com",
+    "adjust.com", "appsflyer.com", "branch.io", "kochava.com", "singular.net",
+    "ads.yahoo.com", "adtechus.com", "adsymptotic.net", "adsymptotic.io",
+    "revcontent.com", "mgid.com", "taboola.com", "outbrain.com", "content.ad", "medianet.com", "contextual.net",
+    "ads-api.twitter.com", "ton.twitter.com", "ads.linkedin.com",
+    // --- Popunder / redirect networks (what movie sites actually fire) ---
+    "propellerads.com", "propellerads.net", "propellerads.ru", "propeller-tracking.com", "propush.me", "propush.link", "propu.sh",
+    "monetag.com", "monetag.net", "mntg.co", "mntg.win", "referrer.top", "onclicka.link", "onclicka.top",
+    "adsterra.com", "adsterra.net", "highperformanceformat.com", "profitableratecpm.com", "adrevenue.adsterra.com",
+    "exoclick.com", "exadsrv.com", "exdynsrv.com", "exadosrv.com",
+    "juicyads.com", "juicyads.net",
+    "hilltopads.com", "hilltopads.net", "hilltop-ads.com",
+    "popads.net", "popcash.net", "popcash.co",
+    "clickadu.com", "clickadu.net",
+    "yllix.com", "yllix.net",
+    "admaven.com", "admaven.net", "admaven.co",
+    "galaksion.com", "galaksion.net",
+    "tsyndicate.com", "tsyndicate.net",
+    "adcash.com", "adcash.net",
+    "trafficjunky.com", "trafficstarz.com", "trafficstars.com",
+    "ad-maven.com", "ad-maven.net", "contentabc.com",
+    "ero-advertising.com", "plugrush.com", "plugg-rush.com",
+    "bidvertiser.com", "popin.cc", "muchacha.club",
+    "protrafficinspector.com", "protraffinspector.com",
+    "adpx.pro", "adbest.pro",
+    "selfgo.site", "go2affise.com",
+    "adxpansion.com", "adxpansion.net",
+    "tsyndicate.link", "track.tsyndicate.com",
+    // --- Common redirect/tracking intermediates seen on streaming sites ---
+    "clktrack.com", "clktrk.link", "affiliate-click.link", "href.li", "go2l.ink",
+    "za.gl", "clk.sh", "trk.link", "gotrkd.com",
+    "ad-market.io", "adpepper.com", "adpartner.io",
+    "retrack.me", "realstat1.com", "redirectingat.com",
+    "popunder.ru", "popunder.net",
+    // --- Push-ad syndication ---
+    "subpush.com", "pospush.com", "pushassist.com", "push5.xyz", "nofication.net",
+    "webpushl.com", "web-push.io", "truepush.io",
 )
 
 private val STREAM_EXTENSIONS = listOf(
