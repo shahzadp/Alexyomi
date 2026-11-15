@@ -13,7 +13,7 @@ build:
 - it has **R8 shrinking and resource shrinking** applied (the debug build ships unshrunk code
   and is ~30 MB bigger)
 - it is signed with the project keystore, so updates install over each other
-- the ABI splits produce one APK per architecture plus a universal one
+- the build produces a single arm64 APK per release (no ABI splits, no universal APK)
 
 Use the debug build only when you need fast iteration and don't care about the size; always
 verify a change in the release build before calling it done.
@@ -109,13 +109,12 @@ GET https://example.cz/api/v1/search   →  200 application/json  ✅
 Only requests that ask for JSON (`Accept: application/json, …`) and get HTML back are retried,
 so normal page requests are never touched.
 
-## ABI splits
+## Single arm64 APK
 
-`splits.abi` produces per-ABI APKs plus a universal one. Install the arm64 one for modern phones:
-
-```
-app/build/outputs/apk/preview/app-arm64-v8a-preview.apk
-```
+Releases ship one arm64 APK (`splits.abi` with `include("arm64-v8a")` and no universal APK).
+That covers the phones Alexyomi runs on and keeps GitHub upload times short — splits pushed
+~360 MB per release and regularly hit mid-upload timeouts. The installer path for antiquated
+32-bit ARM or x86 tablets would need a different build, which we don't produce today.
 
 ## Playback defaults
 
@@ -181,15 +180,11 @@ library/backup features.
 1. Bump `versionCode`/`versionName` in `app/build.gradle.kts` and build the release APKs.
 2. Verify the arm64 APK's signature matches the project key (SHA-256 `e0b2f220…`).
 3. Share the arm64 APK to the phone over KDE Connect.
-4. Create the GitHub release with all five APK splits **plus `.github/ic_launcher_icon.png` as a
+4. Create the GitHub release with the single arm64 APK **plus `.github/ic_launcher_icon.png` as a
    release asset — without exception, for every release**:
 
    gh release create vX.Y.Z --repo shahzadp/Alexyomi --title "Alexyomi vX.Y.Z" --notes-file <notes.md> `
      "app/build/outputs/apk/release/app-arm64-v8a-release.apk" `
-     "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" `
-     "app/build/outputs/apk/release/app-universal-release.apk" `
-     "app/build/outputs/apk/release/app-x86-release.apk" `
-     "app/build/outputs/apk/release/app-x86_64-release.apk" `
      ".github/ic_launcher_icon.png"
 
    `ic_launcher_icon.png` is the app's launcher icon rendered with rounded corners and

@@ -116,9 +116,10 @@ android {
     splits {
         abi {
             isEnable = true
-            isUniversalApk = true
+            isUniversalApk = false
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            // Single arm64 APK per release — keeps uploads small and avoids mid-upload timeouts.
+            include("arm64-v8a")
         }
     }
 
