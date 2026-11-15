@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.FilledTonalButton
@@ -97,6 +98,7 @@ fun MoviesTabScreen() {
 
     var query by remember { mutableStateOf("") }
     var url by remember { mutableStateOf<String?>(null) }
+    val adBlockState = remember { mutableStateOf(true) }
     val streams = remember { MovieStreams() }
     val detected = streams.streams
 
@@ -111,6 +113,25 @@ fun MoviesTabScreen() {
         topBar = {
             AppBar(
                 title = stringResource(AYMR.strings.label_movies),
+                actions = {
+                    IconButton(onClick = { adBlockState.value = !adBlockState.value }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Security,
+                            contentDescription = stringResource(
+                                if (adBlockState.value) {
+                                    AYMR.strings.movies_adblock_on
+                                } else {
+                                    AYMR.strings.movies_adblock_off
+                                },
+                            ),
+                            tint = if (adBlockState.value) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                },
             )
         },
     ) { paddingValues ->
@@ -230,9 +251,13 @@ fun MoviesTabScreen() {
                         view: android.webkit.WebView,
                         request: WebResourceRequest?,
                     ): WebResourceResponse? {
+                        if (request?.isForMainFrame == true) {
+                            // Never blank the page the user is actually on.
+                            return super.shouldInterceptRequest(view, request)
+                        }
                         val host = request?.url?.host
                         val initiator = refererHost(request) ?: topHost
-                        if (host != null &&
+                        if (adBlockState.value && host != null &&
                             (isBlockedHost(host) || MovieAdBlockList.isBlocked(host, initiator))
                         ) {
                             // Cut the ad off before it fires.
@@ -251,10 +276,10 @@ fun MoviesTabScreen() {
                     ): Boolean {
                         val host = request?.url?.host
                         val initiator = refererHost(request) ?: topHost
-                        if (host != null &&
+                        if (adBlockState.value && host != null &&
                             (isBlockedHost(host) || MovieAdBlockList.isBlocked(host, initiator))
                         ) {
-                            // Redirect/jump to an ad — kill it, stay on the movie page.
+                            // Redirect/jump to an ad; kill it and stay on the movie page.
                             return true
                         }
                         val requestUrl = request?.url?.toString().orEmpty()
@@ -330,19 +355,15 @@ fun MoviesTabScreen() {
     }
 }
 
-// Injected into every page: neuter window.open (how pirate sites pop ads) and
-// hide the ad elements they inject into their own pages. uBlock-style cosmetic filtering.
+// Injected into every page: neuter window.open (how pirate sites pop ads) and hide
+// the ad elements they inject into their own pages. Timed re-scans instead of a
+// MutationObserver — a persistent observer starved the page's JS thread and froze it.
 private const val AD_SHIM_JS = """
 (function () {
   if (window.__alexyomiBlock) return;
   window.__alexyomiBlock = true;
   try {
-    var blocked = function () { return null; };
-    try {
-      Object.defineProperty(window, 'open', { value: blocked, writable: false, configurable: false });
-    } catch (e) {
-      window.open = blocked;
-    }
+    window.open = function () { return null; };
   } catch (e) {}
   function hideAds () {
     var sels = [
@@ -366,14 +387,11 @@ private const val AD_SHIM_JS = """
     }
   }
   try {
-    var observer = new MutationObserver(hideAds);
-    observer.observe(document.documentElement || document, {
-      childList: true,
-      subtree: true
-    });
+    hideAds();
+    document.addEventListener('DOMContentLoaded', hideAds);
+    setTimeout(hideAds, 1200);
+    setTimeout(hideAds, 3500);
   } catch (e) {}
-  hideAds();
-  document.addEventListener('DOMContentLoaded', hideAds);
 })();
 """
 
