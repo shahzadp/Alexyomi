@@ -164,10 +164,10 @@ object SavedLinksPdf {
             y += 8f
         }
 
-        // --- Unfiled ---
+        // --- Ungrouped ---
         val unfiled = data.links.filter { it.folderId == null }
         if (unfiled.isNotEmpty()) {
-            sectionHeader("Unfiled", null, unfiled.size)
+            sectionHeader("Ungrouped", null, unfiled.size)
             unfiled.forEach { linkRow(it) }
         }
 
@@ -188,7 +188,7 @@ object SavedLinksPdf {
             val folderName = data.folders.firstOrNull { it.id == link.folderId }?.name.orEmpty()
             machineLines += "ALX|L|folder=${enc(folderName)}|name=${enc(link.name)}|url=${enc(link.url)}"
         }
-        machineLines += "ALX|E"
+        machineLines += "ALX|E|"
 
         newPageWhite()
         val ghostPaint = Paint().apply {
@@ -196,7 +196,7 @@ object SavedLinksPdf {
             color = Color.WHITE
             isAntiAlias = true
         }
-        canvas.drawText("Alexyomi backup data", MARGIN_X, y, rowPaint)
+        canvas.drawText("Alexyomi backup data", MARGIN_X, y, metaPaint)
         y += 10f
         for (line in machineLines) {
             canvas.drawText(line, MARGIN_X, y, ghostPaint)
@@ -212,10 +212,30 @@ object SavedLinksPdf {
 
     /** Returns the merged data, or null if the file is not an Alexyomi backup PDF. */
     fun importBytes(current: SavedLinksData, bytes: ByteArray): SavedLinksData? {
-        val text = String(bytes, Charsets.ISO_8859_1)
-        // The machine block lines are pure ASCII ALX|... — find them anywhere in the file
-        // without depending on how the PDF generator encodes its text operators.
-        val rows = ALX_LINE.findAll(text).map { it.value }.toList()
+        val bytesText = String(bytes, Charsets.ISO_8859_1)
+        val rows = mutableListOf<String>()
+
+        // Cheap path: the text is already readable in the raw file.
+        rows += ALX_LINE.findAll(bytesText).map { it.value }
+
+        // Android's PdfDocument deflate-compresses page content streams, so the raw
+        // bytes show no readable text at all. Inflate every stream and scan those.
+        if (rows.isEmpty()) {
+            val streamRegex = Regex("""stream\r?\n""")
+            val endRegex = Regex("""endstream""")
+            val ends = endRegex.findAll(bytesText).map { it.range.first }.toList()
+            for (match in streamRegex.findAll(bytesText)) {
+                val dataStart = match.range.last + 1
+                var dataEnd = ends.firstOrNull { it >= dataStart } ?: continue
+                while (dataEnd > dataStart && (bytesText[dataEnd - 1] == '\n' || bytesText[dataEnd - 1] == '\r')) {
+                    dataEnd--
+                }
+                val payload = bytesText.substring(dataStart, dataEnd).toByteArray(Charsets.ISO_8859_1)
+                val inflated = tryInflate(payload) ?: continue
+                rows += ALX_LINE.findAll(String(inflated, Charsets.ISO_8859_1)).map { it.value }
+                if (rows.isNotEmpty()) break
+            }
+        }
         if (rows.none { it.startsWith("ALX|T|") }) return null
 
         val folders = current.folders.toMutableList()
@@ -253,7 +273,7 @@ object SavedLinksPdf {
                         )
                     }
                 }
-                row == "ALX|E" -> break
+                row.startsWith("ALX|E") -> break
             }
         }
 
@@ -273,6 +293,27 @@ object SavedLinksPdf {
     }
 
     private val ALX_LINE = Regex("""ALX\|[TFLTE]\|[^\s()\\\r\n]*""")
+
+    private fun tryInflate(data: ByteArray): ByteArray? = runCatching {
+        val inflater = java.util.zip.Inflater(false)
+        inflater.setInput(data)
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0
+        var iterations = 0
+        while (!inflater.finished() && iterations < 10_000) {
+            iterations++
+            val n = inflater.inflate(buffer)
+            if (n > 0) {
+                out.write(buffer, 0, n)
+                total += n
+            } else if (inflater.needsInput() || inflater.needsDictionary()) {
+                break
+            }
+        }
+        inflater.end()
+        if (total == 0) null else out.toByteArray()
+    }.getOrNull()
 
     private fun parseFields(s: String): Map<String, String> =
         s.split('|').mapNotNull { part ->

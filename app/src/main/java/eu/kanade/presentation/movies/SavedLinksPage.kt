@@ -32,7 +32,6 @@ import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.AlertDialog
@@ -403,7 +402,39 @@ private fun SavedLinksList(
                         else MaterialTheme.colorScheme.surfaceContainerHigh,
                         RoundedCornerShape(12.dp),
                     )
-                    .clip(RoundedCornerShape(12.dp)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .pointerInput(index, slot) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                if (slot is Slot.LinkRow) {
+                                    dragIndex = index
+                                    dragOffsetY = 0f
+                                }
+                            },
+                            onDrag = { _, amount ->
+                                dragOffsetY += amount.y
+                            },
+                            onDragEnd = {
+                                val from = dragIndex
+                                if (from != null) {
+                                    val to = (from + (dragOffsetY / slotHeightPx).toInt())
+                                        .coerceIn(0, slots.lastIndex)
+                                    if (to != from) {
+                                        val dragged = (slots[from] as? Slot.LinkRow)?.link
+                                        if (dragged != null) {
+                                            onDataChange(moveLink(data, dragged, slots, to))
+                                        }
+                                    }
+                                }
+                                dragIndex = null
+                                dragOffsetY = 0f
+                            },
+                            onDragCancel = {
+                                dragIndex = null
+                                dragOffsetY = 0f
+                            },
+                        )
+                    },
             ) {
                 when (slot) {
                     is Slot.FolderHeader -> FolderHeaderRow(
@@ -429,48 +460,6 @@ private fun SavedLinksList(
                         onOpen = onOpenLink,
                         onRename = { onRenameLink(slot.link) },
                         onDelete = { onDeleteLink(slot.link) },
-                        dragHandle = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(index) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                dragIndex = index
-                                                dragOffsetY = 0f
-                                            },
-                                            onDrag = { _, amount ->
-                                                dragOffsetY += amount.y
-                                            },
-                                            onDragEnd = {
-                                                val from = dragIndex
-                                                if (from != null) {
-                                                    val to = (from + (dragOffsetY / slotHeightPx).toInt())
-                                                        .coerceIn(0, slots.lastIndex)
-                                                    if (to != from) {
-                                                        val dragged = (slots[from] as? Slot.LinkRow)?.link
-                                                        if (dragged != null) {
-                                                            onDataChange(moveLink(data, dragged, slots, to))
-                                                        }
-                                                    }
-                                                }
-                                                dragIndex = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragCancel = {
-                                                dragIndex = null
-                                                dragOffsetY = 0f
-                                            },
-                                        )
-                                    },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.DragHandle,
-                                    contentDescription = composeStringResource(AYMR.strings.movies_drag_hint),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        },
                     )
                 }
             }
@@ -523,20 +512,17 @@ private fun LinkRow(
     onOpen: (SavedLink) -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
-    dragHandle: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxSize(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-            dragHandle()
-        }
         Column(
             modifier = Modifier
                 .weight(1f)
                 .clickable { onOpen(link) }
-                .padding(vertical = 8.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         ) {
             Text(
                 text = link.name,
