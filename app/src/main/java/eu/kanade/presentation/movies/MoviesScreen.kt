@@ -4,6 +4,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.net.Uri
 import android.os.Message
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import java.io.ByteArrayInputStream
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -97,6 +99,7 @@ private class MoviesWebChromeClient(
     private var fullscreenCallback: android.webkit.WebChromeClient.CustomViewCallback? = null
     private var fullscreenParent: android.view.ViewGroup? = null
     private var fullscreenPreviousOrientation: Int? = null
+    private var fullscreenPreviousBackground: android.graphics.drawable.Drawable? = null
 
     override fun onCreateWindow(
         view: android.webkit.WebView?,
@@ -120,28 +123,50 @@ private class MoviesWebChromeClient(
         for (i in 0 until content.childCount) {
             content.getChildAt(i).visibility = android.view.View.GONE
         }
-        view.setBackgroundColor(android.graphics.Color.BLACK)
+        fullscreenPreviousBackground = content.background
+        content.setBackgroundColor(android.graphics.Color.BLACK)
+
         // Back press exits fullscreen, like every fullscreen browser.
-        view.isFocusable = true
-        view.isFocusableInTouchMode = true
-        view.setOnKeyListener { _, keyCode, _ ->
-            if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
-                onHideCustomView()
-                true
-            } else {
-                false
+        // The wrapper pads itself by the system bars + display cutout, so fullscreen
+        // never draws over the navigation buttons or the notch, in any orientation.
+        val wrapper = android.widget.FrameLayout(content.context).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnKeyListener { _, keyCode, _ ->
+                if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                    onHideCustomView()
+                    true
+                } else {
+                    false
+                }
             }
+            ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
+                val bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+                )
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                insets
+            }
+            addView(
+                view,
+                android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
         }
         content.addView(
-            view,
+            wrapper,
             android.widget.FrameLayout.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
-        view.requestFocus()
+        wrapper.requestApplyInsets()
+        wrapper.requestFocus()
         fullscreenParent = content
-        fullscreenView = view
+        fullscreenView = wrapper
         fullscreenCallback = callback
         // Default to landscape while fullscreen; restore whatever the app had before.
         fullscreenPreviousOrientation = activity?.requestedOrientation
@@ -156,6 +181,7 @@ private class MoviesWebChromeClient(
             for (i in 0 until content.childCount) {
                 content.getChildAt(i).visibility = android.view.View.VISIBLE
             }
+            content.background = fullscreenPreviousBackground
         }
         try {
             fullscreenCallback?.onCustomViewHidden()
@@ -169,6 +195,7 @@ private class MoviesWebChromeClient(
             activity?.requestedOrientation = prev
         }
         fullscreenPreviousOrientation = null
+        fullscreenPreviousBackground = null
     }
 }
 
@@ -533,10 +560,13 @@ private const val AD_SHIM_JS = """
   try {
     window.open = function () { return null; };
   } catch (e) {}
+  var ua = (navigator.userAgent || '');
+  var isAndroid = /Android/i.test(ua);
+  var desktopSite = !isAndroid && /Windows|Macintosh|CrOS|Linux x86_64|X11/.test(ua);
   function hideAds () {
-    // Only leaf ad nodes: never hide anything containing the video, player chrome,
-    // links or controls — those are the site's UI, not ads.
-    var sels = [
+    // Desktop-site layouts are far more fragile; only drop the explicit Google-ad
+    // markers there. Mobile sites get the fuller (still interactive-safe) list.
+    var mobileSels = [
       'ins.adsbygoogle', '.adsbygoogle',
       '#google_ads_iframe_*', 'iframe[id*="google_ads_iframe"]',
       'div[class="ad"]', 'div[class="ads"]', 'div[class="ad-slot"]', 'div[class="ad-box"]',
@@ -544,6 +574,15 @@ private const val AD_SHIM_JS = """
       '.sponsor-banner', '.adbox', '.advert-placeholder',
       '[class*="popunder" i]', '[class*="pop-under" i]'
     ];
+    var desktopSels = [
+      'ins.adsbygoogle', '.adsbygoogle',
+      'iframe[id*="google_ads_iframe"]',
+      '[data-ad-slot]', '[data-ad-unit]', '[data-google-ad-client]',
+      'iframe[src*="googlesyndication.com"]'
+    ];
+    // Only leaf ad nodes: never hide anything containing the video, player chrome,
+    // links or controls — those are the site's UI, not ads.
+    var sels = desktopSite ? desktopSels : mobileSels;
     for (var i = 0; i < sels.length; i++) {
       try {
         var nodes = document.querySelectorAll(sels[i]);
