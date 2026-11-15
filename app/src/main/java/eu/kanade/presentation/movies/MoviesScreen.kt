@@ -96,6 +96,7 @@ private class MoviesWebChromeClient(
     private var fullscreenView: android.view.View? = null
     private var fullscreenCallback: android.webkit.WebChromeClient.CustomViewCallback? = null
     private var fullscreenParent: android.view.ViewGroup? = null
+    private var fullscreenPreviousOrientation: Int? = null
 
     override fun onCreateWindow(
         view: android.webkit.WebView?,
@@ -130,6 +131,9 @@ private class MoviesWebChromeClient(
         fullscreenParent = content
         fullscreenView = view
         fullscreenCallback = callback
+        // Default to landscape while fullscreen; restore whatever the app had before.
+        fullscreenPreviousOrientation = activity?.requestedOrientation
+        activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
 
     override fun onHideCustomView() {
@@ -149,6 +153,10 @@ private class MoviesWebChromeClient(
         fullscreenView = null
         fullscreenCallback = null
         fullscreenParent = null
+        fullscreenPreviousOrientation?.let { prev ->
+            activity?.requestedOrientation = prev
+        }
+        fullscreenPreviousOrientation = null
     }
 }
 
