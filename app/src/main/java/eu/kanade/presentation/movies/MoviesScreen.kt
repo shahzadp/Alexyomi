@@ -121,6 +121,17 @@ private class MoviesWebChromeClient(
             content.getChildAt(i).visibility = android.view.View.GONE
         }
         view.setBackgroundColor(android.graphics.Color.BLACK)
+        // Back press exits fullscreen, like every fullscreen browser.
+        view.isFocusable = true
+        view.isFocusableInTouchMode = true
+        view.setOnKeyListener { _, keyCode, _ ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                onHideCustomView()
+                true
+            } else {
+                false
+            }
+        }
         content.addView(
             view,
             android.widget.FrameLayout.LayoutParams(
@@ -128,6 +139,7 @@ private class MoviesWebChromeClient(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
+        view.requestFocus()
         fullscreenParent = content
         fullscreenView = view
         fullscreenCallback = callback
@@ -522,21 +534,24 @@ private const val AD_SHIM_JS = """
     window.open = function () { return null; };
   } catch (e) {}
   function hideAds () {
+    // Only leaf ad nodes: never hide anything containing the video, player chrome,
+    // links or controls — those are the site's UI, not ads.
     var sels = [
       'ins.adsbygoogle', '.adsbygoogle',
-      '.advertisement', '.advertisement-banner', '.ad-banner', '.ad-container',
-      '.ads-wrapper', '.ad-wrapper', '.sponsored-ad', '.float-ad', '#float-ad',
-      '[class*="popunder" i]', '[class*="pop-under" i]', '[class*="float-ad" i]',
-      '[class*="ad-container" i]', '[class*="ad-wrapper" i]', '[class*="ads-wrapper" i]',
-      '[class*="sponsored-ad" i]', '[class*="preroll-ad" i]',
-      '[id*="float-ad" i]', '[id*="ad-container" i]', '[id*="ads-wrapper" i]'
+      '#google_ads_iframe_*', 'iframe[id*="google_ads_iframe"]',
+      'div[class="ad"]', 'div[class="ads"]', 'div[class="ad-slot"]', 'div[class="ad-box"]',
+      '.advertisement', '.ad-slot', '.ad-placeholder', '.ad-unit', '.banner-ad',
+      '.sponsor-banner', '.adbox', '.advert-placeholder',
+      '[class*="popunder" i]', '[class*="pop-under" i]'
     ];
     for (var i = 0; i < sels.length; i++) {
       try {
         var nodes = document.querySelectorAll(sels[i]);
         for (var j = 0; j < nodes.length; j++) {
-          if (nodes[j].style.display !== 'none') {
-            nodes[j].style.setProperty('display', 'none', 'important');
+          var n = nodes[j];
+          if (n.querySelector('video, iframe, button, input, select, a, canvas')) continue;
+          if (n.style.display !== 'none') {
+            n.style.setProperty('display', 'none', 'important');
           }
         }
       } catch (e) {}
