@@ -171,7 +171,15 @@ object SavedLinksPdf {
             unfiled.forEach { linkRow(it) }
         }
 
-        // --- Invisible machine-readable data for re-import (drawn off-page) ---
+        // --- Invisible machine-readable data for re-import ---
+        // A dedicated final page, drawn in white 5pt text on the white page: invisible to a
+        // reader, but fully present in the PDF content stream. Import scans for these lines.
+        fun newPageWhite() {
+            pdf.finishPage(page)
+            page = pdf.startPage(PdfDocument.PageInfo.Builder(PAGE_W, PAGE_H, ++pageNum).create())
+            canvas = page.canvas
+            y = MARGIN_TOP
+        }
         val machineLines = mutableListOf("ALX|T|v1")
         for (folder in data.folders) {
             machineLines += "ALX|F|name=${enc(folder.name)}|color=${folder.color}"
@@ -181,10 +189,18 @@ object SavedLinksPdf {
             machineLines += "ALX|L|folder=${enc(folderName)}|name=${enc(link.name)}|url=${enc(link.url)}"
         }
         machineLines += "ALX|E"
-        y = PAGE_H + 400f // far outside the visible page; operators are still emitted
+
+        newPageWhite()
+        val ghostPaint = Paint().apply {
+            textSize = 5f
+            color = Color.WHITE
+            isAntiAlias = true
+        }
+        canvas.drawText("Alexyomi backup data", MARGIN_X, y, rowPaint)
+        y += 10f
         for (line in machineLines) {
-            canvas.drawText(line, MARGIN_X, y, subPaint)
-            y += 2f
+            canvas.drawText(line, MARGIN_X, y, ghostPaint)
+            y += 6f
         }
 
         pdf.finishPage(page)
@@ -197,10 +213,10 @@ object SavedLinksPdf {
     /** Returns the merged data, or null if the file is not an Alexyomi backup PDF. */
     fun importBytes(current: SavedLinksData, bytes: ByteArray): SavedLinksData? {
         val text = String(bytes, Charsets.ISO_8859_1)
-        val literals = findLiteralStrings(text)
-        val rows = literals.map { decodeLiteral(it) }.map { it.trimEnd('\n', '\r') }
-            .filter { it.startsWith("ALX|") }
-        if (rows.isEmpty()) return null
+        // The machine block lines are pure ASCII ALX|... — find them anywhere in the file
+        // without depending on how the PDF generator encodes its text operators.
+        val rows = ALX_LINE.findAll(text).map { it.value }.toList()
+        if (rows.none { it.startsWith("ALX|T|") }) return null
 
         val folders = current.folders.toMutableList()
         val usedColors = folders.map { it.color }.toMutableList()
@@ -256,72 +272,13 @@ object SavedLinksPdf {
         return current.copy(folders = folders, links = mergedLinks)
     }
 
+    private val ALX_LINE = Regex("""ALX\|[TFLTE]\|[^\s()\\\r\n]*""")
+
     private fun parseFields(s: String): Map<String, String> =
         s.split('|').mapNotNull { part ->
             val idx = part.indexOf('=')
             if (idx <= 0) null else part.substring(0, idx) to part.substring(idx + 1)
         }.toMap()
-
-    private fun findLiteralStrings(text: String): List<String> {
-        val out = mutableListOf<String>()
-        var i = 0
-        while (i < text.length) {
-            if (text[i] != '(') {
-                i++
-                continue
-            }
-            var j = i + 1
-            while (j < text.length) {
-                val c = text[j]
-                if (c == '\\') {
-                    j += 2
-                    continue
-                }
-                if (c == ')') break
-                j++
-            }
-            if (j < text.length) {
-                out.add(text.substring(i + 1, j))
-                i = j + 1
-            } else {
-                break
-            }
-        }
-        return out
-    }
-
-    private fun decodeLiteral(s: String): String {
-        val out = StringBuilder(s.length)
-        var i = 0
-        while (i < s.length) {
-            val c = s[i]
-            if (c != '\\') {
-                out.append(c)
-                i++
-                continue
-            }
-            if (i + 1 >= s.length) break
-            when (val next = s[i + 1]) {
-                'n' -> { out.append('\n'); i += 2 }
-                'r' -> { out.append('\r'); i += 2 }
-                't' -> { out.append('\t'); i += 2 }
-                '(' -> { out.append('('); i += 2 }
-                ')' -> { out.append(')'); i += 2 }
-                '\\' -> { out.append('\\'); i += 2 }
-                in '0'..'7' -> {
-                    var octal = ""
-                    var j = i + 1
-                    while (j < s.length && octal.length < 3 && s[j] in '0'..'7') {
-                        octal += s[j]; j++
-                    }
-                    out.append(octal.toInt(8).toChar())
-                    i = j
-                }
-                else -> { out.append(next); i += 2 }
-            }
-        }
-        return out.toString()
-    }
 
     private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
     private fun dec(s: String): String = URLDecoder.decode(s, "UTF-8")

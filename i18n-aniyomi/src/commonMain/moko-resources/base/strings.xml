@@ -662,6 +662,12 @@
     <string name="movies_drag_hint">Long-press the handle to drag links into folders</string>
     <string name="movies_rename_link">Rename link</string>
     <string name="movies_link_name">Link name</string>
+    <string name="movies_link_url">Website URL</string>
+    <string name="movies_add_link">Add link</string>
+    <string name="movies_add_website_link">Add website link</string>
+    <string name="movies_link_added">Link added</string>
+    <string name="movies_backup">Backup links</string>
+    <string name="movies_copy_link">Copy link address</string>
     <string name="movies_delete_folder_title">Delete folder &quot;%1$s&quot;?</string>
     <string name="movies_delete_folder_summary">The folder is removed, but its links are kept and moved back to Unfiled.</string>
     <string name="movies_search_hint">Search or type a URL</string>

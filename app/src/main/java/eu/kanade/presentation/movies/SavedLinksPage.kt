@@ -13,7 +13,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.DragHandle
@@ -51,12 +54,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.toast
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
@@ -80,6 +85,8 @@ fun SavedLinksPage(
     var folderDialog by remember { mutableStateOf<String?>(null) } // null closed, "" new, else folder id for rename
     var renameLink by remember { mutableStateOf<SavedLink?>(null) }
     var deleteFolder by remember { mutableStateOf<SavedFolder?>(null) }
+    var showAddLink by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { importBackup(context, it, data, onDataChange) }
@@ -89,9 +96,9 @@ fun SavedLinksPage(
         topBar = {
             SavedLinksTopBar(
                 onBack = onBack,
+                onAddLink = { showAddLink = true },
                 onAddFolder = { folderDialog = "" },
-                onImport = { importLauncher.launch(arrayOf("application/pdf", "application/octet-stream")) },
-                onExport = { exportBackup(context, data) },
+                onBackup = { showBackupDialog = true },
             )
         },
         modifier = modifier,
@@ -158,7 +165,7 @@ fun SavedLinksPage(
         )
     }
 
-    // --- Rename link dialog ---
+    // --- Rename link dialog (with a copy button for the link address) ---
     renameLink?.let { link ->
         TextInputDialog(
             title = composeStringResource(AYMR.strings.movies_rename_link),
@@ -175,6 +182,79 @@ fun SavedLinksPage(
                     )
                 }
                 renameLink = null
+            },
+            below = {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = link.url,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = {
+                            context.copyToClipboard(link.name, link.url)
+                            context.toast(AYMR.strings.copied)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = composeStringResource(AYMR.strings.movies_copy_link),
+                        )
+                    }
+                }
+            },
+        )
+    }
+
+    // --- Backup dialog: import and export merged into one button ---
+    if (showBackupDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackupDialog = false },
+            title = { Text(composeStringResource(AYMR.strings.movies_backup)) },
+            text = {
+                Column {
+                    BackupActionRow(
+                        icon = Icons.Outlined.Download,
+                        label = composeStringResource(AYMR.strings.movies_export_pdf),
+                        onClick = {
+                            showBackupDialog = false
+                            exportBackup(context, data)
+                        },
+                    )
+                    BackupActionRow(
+                        icon = Icons.Outlined.Add,
+                        label = composeStringResource(AYMR.strings.movies_import_pdf),
+                        onClick = {
+                            showBackupDialog = false
+                            importLauncher.launch(arrayOf("application/pdf", "application/octet-stream"))
+                        },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBackupDialog = false }) {
+                    Text(composeStringResource(MR.strings.action_cancel))
+                }
+            },
+        )
+    }
+
+    // --- Add website link dialog ---
+    if (showAddLink) {
+        AddWebsiteLinkDialog(
+            onDismiss = { showAddLink = false },
+            onSave = { name, url ->
+                val normalized = normalizeLink(url)
+                val finalName = name.ifBlank { hostOf(normalized) ?: normalized }
+                onDataChange(data.copy(links = data.links + SavedLink(name = finalName, url = normalized)))
+                context.toast(AYMR.strings.movies_link_added)
+                showAddLink = false
             },
         )
     }
@@ -210,30 +290,30 @@ fun SavedLinksPage(
 @Composable
 private fun SavedLinksTopBar(
     onBack: () -> Unit,
+    onAddLink: () -> Unit,
     onAddFolder: () -> Unit,
-    onImport: () -> Unit,
-    onExport: () -> Unit,
+    onBackup: () -> Unit,
 ) {
     AppBar(
         title = composeStringResource(AYMR.strings.movies_saved_links),
         navigateUp = onBack,
         actions = {
+            IconButton(onClick = onAddLink) {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = composeStringResource(AYMR.strings.movies_add_link),
+                )
+            }
             IconButton(onClick = onAddFolder) {
                 Icon(
                     imageVector = Icons.Outlined.Folder,
                     contentDescription = composeStringResource(AYMR.strings.movies_add_folder),
                 )
             }
-            IconButton(onClick = onImport) {
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = composeStringResource(AYMR.strings.movies_import_pdf),
-                )
-            }
-            IconButton(onClick = onExport) {
+            IconButton(onClick = onBackup) {
                 Icon(
                     imageVector = Icons.Outlined.Download,
-                    contentDescription = composeStringResource(AYMR.strings.movies_export_pdf),
+                    contentDescription = composeStringResource(AYMR.strings.movies_backup),
                 )
             }
         },
@@ -247,18 +327,22 @@ private fun TextInputDialog(
     initial: String,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
+    below: @Composable ColumnScope.() -> Unit = {},
 ) {
     var text by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                label = { Text(label) },
-            )
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    label = { Text(label) },
+                )
+                below()
+            }
         },
         confirmButton = {
             TextButton(onClick = { onSave(text) }) {
@@ -303,6 +387,7 @@ private fun SavedLinksList(
             val isDragging = dragIndex == index
             Box(
                 modifier = Modifier
+                    .padding(horizontal = 10.dp, vertical = 3.dp)
                     .height(SLOT_HEIGHT.dp)
                     .fillMaxWidth()
                     .zIndex(if (isDragging) 1f else 0f)
@@ -312,11 +397,13 @@ private fun SavedLinksList(
                         scaleY = if (isDragging) 1.02f else 1f
                         alpha = if (isDragging) 0.95f else 1f
                     }
-                    .shadow(if (isDragging) 10.dp else 0.dp, RoundedCornerShape(8.dp))
+                    .shadow(if (isDragging) 10.dp else 0.dp, RoundedCornerShape(12.dp))
                     .background(
-                        if (isDragging) MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp)
-                        else MaterialTheme.colorScheme.surface,
-                    ),
+                        if (isDragging) MaterialTheme.colorScheme.surfaceColorAtElevation(10.dp)
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        RoundedCornerShape(12.dp),
+                    )
+                    .clip(RoundedCornerShape(12.dp)),
             ) {
                 when (slot) {
                     is Slot.FolderHeader -> FolderHeaderRow(
@@ -473,6 +560,87 @@ private fun LinkRow(
         }
     }
 }
+
+@Composable
+private fun BackupActionRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = label,
+            modifier = Modifier.padding(start = 16.dp),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
+}
+
+@Composable
+private fun AddWebsiteLinkDialog(
+    onDismiss: () -> Unit,
+    onSave: (name: String, url: String) -> Unit,
+) {
+    var url by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(composeStringResource(AYMR.strings.movies_add_website_link)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    singleLine = true,
+                    label = { Text(composeStringResource(AYMR.strings.movies_link_url)) },
+                    placeholder = { Text("example.com") },
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text(composeStringResource(AYMR.strings.movies_link_name)) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = url.isNotBlank(),
+                onClick = { onSave(name.trim(), url.trim()) },
+            ) {
+                Text(composeStringResource(MR.strings.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(composeStringResource(MR.strings.action_cancel))
+            }
+        },
+    )
+}
+
+private fun normalizeLink(raw: String): String {
+    val t = raw.trim()
+    if (t.startsWith("http://") || t.startsWith("https://")) return t
+    if (t.startsWith("www.")) return "https://$t"
+    return "https://$t"
+}
+
+private fun hostOf(url: String): String? =
+    runCatching { Uri.parse(url).host?.lowercase() }.getOrNull()
 
 private fun exportBackup(context: Context, data: SavedLinksData) {
     runCatching {
