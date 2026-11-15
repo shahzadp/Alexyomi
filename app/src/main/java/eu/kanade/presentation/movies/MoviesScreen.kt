@@ -7,25 +7,34 @@ import android.os.Message
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.ByteArrayInputStream
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -44,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.kevinnzou.web.AccompanistWebChromeClient
@@ -213,8 +223,12 @@ fun MoviesTabScreen() {
     val streams = remember { MovieStreams() }
     val detected = streams.streams
 
+    var savedLinks by remember { mutableStateOf(SavedLinksStore.load(context)) }
+    var showSavedLinks by remember { mutableStateOf(false) }
+
     fun goTo(target: String) {
         streams.clear()
+        pageTitle = ""
         url = target
     }
 
@@ -225,6 +239,39 @@ fun MoviesTabScreen() {
             AppBar(
                 title = stringResource(AYMR.strings.label_movies),
                 actions = {
+                    val currentLink = url
+                    if (currentLink != null) {
+                        val isSaved = savedLinks.any { it.url == currentLink }
+                        IconButton(onClick = {
+                            val pageUrl = currentLink
+                            val name = pageTitle.ifBlank {
+                                runCatching { Uri.parse(pageUrl).host?.lowercase() }.getOrNull() ?: pageUrl
+                            }
+                            val updated = if (isSaved) {
+                                savedLinks.filterNot { it.url == pageUrl }
+                            } else {
+                                savedLinks + SavedLink(name, pageUrl)
+                            }
+                            SavedLinksStore.save(context, updated)
+                            savedLinks = updated
+                        }) {
+                            Icon(
+                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = stringResource(AYMR.strings.movies_save_link),
+                                tint = if (isSaved) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+                    IconButton(onClick = { showSavedLinks = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.CollectionsBookmark,
+                            contentDescription = stringResource(AYMR.strings.movies_saved_links),
+                        )
+                    }
                     IconButton(onClick = { adBlockState.value = !adBlockState.value }) {
                         Icon(
                             imageVector = Icons.Outlined.Security,
@@ -456,6 +503,14 @@ fun MoviesTabScreen() {
                     ) {
                         super.onPageFinished(view, url)
                         view.evaluateJavascript(AD_SHIM_JS, null)
+                        view.evaluateJavascript("(function(){return document.title||''})()") { raw ->
+                            val t = raw?.trim().orEmpty()
+                            if (t.length > 1 && t.startsWith("\"")) {
+                                runCatching { Json.decodeFromString<String>(t) }.getOrNull()?.let {
+                                    if (it.isNotBlank()) pageTitle = it
+                                }
+                            }
+                        }
                         if (url?.lowercase()?.contains("youtube.com") == true) {
                             extractYoutubeStreams(view)
                         }
@@ -515,6 +570,72 @@ fun MoviesTabScreen() {
                         Text(stringResource(AYMR.strings.movies_play_in_alexyomi))
                     }
                 }
+            }
+
+            if (showSavedLinks) {
+                AlertDialog(
+                    onDismissRequest = { showSavedLinks = false },
+                    title = { Text(stringResource(AYMR.strings.movies_saved_links)) },
+                    text = {
+                        if (savedLinks.isEmpty()) {
+                            Text(
+                                text = stringResource(AYMR.strings.movies_saved_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                                items(savedLinks, key = { it.url }) { link ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    showSavedLinks = false
+                                                    goToResolved(link.url)
+                                                }
+                                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                        ) {
+                                            Text(
+                                                text = link.name,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                            )
+                                            Text(
+                                                text = link.url,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val updated = savedLinks.filterNot { it.url == link.url }
+                                                SavedLinksStore.save(context, updated)
+                                                savedLinks = updated
+                                            },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Clear,
+                                                contentDescription = stringResource(AYMR.strings.movies_remove_link),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSavedLinks = false }) {
+                            Text(stringResource(MR.strings.action_close))
+                        }
+                    },
+                )
             }
         }
     }
