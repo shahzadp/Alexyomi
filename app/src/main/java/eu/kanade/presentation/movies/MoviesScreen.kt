@@ -321,8 +321,16 @@ fun MoviesTabScreen() {
                         )
                     },
                     trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { query = "" }) {
+                        if (query.isNotEmpty() || url != null) {
+                            IconButton(
+                                onClick = {
+                                    // Clear the field AND return to the start page.
+                                    query = ""
+                                    streams.clear()
+                                    pageTitle = ""
+                                    url = null
+                                },
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Clear,
                                     contentDescription = stringResource(AYMR.strings.action_clear),
@@ -375,6 +383,72 @@ fun MoviesTabScreen() {
                         )
                     }
                 }
+            }
+
+            if (showSavedLinks) {
+                AlertDialog(
+                    onDismissRequest = { showSavedLinks = false },
+                    title = { Text(stringResource(AYMR.strings.movies_saved_links)) },
+                    text = {
+                        if (savedLinks.isEmpty()) {
+                            Text(
+                                text = stringResource(AYMR.strings.movies_saved_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                                items(savedLinks, key = { it.url }) { link ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    showSavedLinks = false
+                                                    goToResolved(link.url)
+                                                }
+                                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                        ) {
+                                            Text(
+                                                text = link.name,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                            )
+                                            Text(
+                                                text = link.url,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val updated = savedLinks.filterNot { it.url == link.url }
+                                                SavedLinksStore.save(context, updated)
+                                                savedLinks = updated
+                                            },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Clear,
+                                                contentDescription = stringResource(AYMR.strings.movies_remove_link),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSavedLinks = false }) {
+                            Text(stringResource(MR.strings.action_close))
+                        }
+                    },
+                )
             }
 
             if (url == null) {
@@ -572,71 +646,6 @@ fun MoviesTabScreen() {
                 }
             }
 
-            if (showSavedLinks) {
-                AlertDialog(
-                    onDismissRequest = { showSavedLinks = false },
-                    title = { Text(stringResource(AYMR.strings.movies_saved_links)) },
-                    text = {
-                        if (savedLinks.isEmpty()) {
-                            Text(
-                                text = stringResource(AYMR.strings.movies_saved_empty),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else {
-                            LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                                items(savedLinks, key = { it.url }) { link ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clickable {
-                                                    showSavedLinks = false
-                                                    goToResolved(link.url)
-                                                }
-                                                .padding(vertical = 10.dp, horizontal = 4.dp),
-                                        ) {
-                                            Text(
-                                                text = link.name,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.bodyLarge,
-                                            )
-                                            Text(
-                                                text = link.url,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                val updated = savedLinks.filterNot { it.url == link.url }
-                                                SavedLinksStore.save(context, updated)
-                                                savedLinks = updated
-                                            },
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Clear,
-                                                contentDescription = stringResource(AYMR.strings.movies_remove_link),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showSavedLinks = false }) {
-                            Text(stringResource(MR.strings.action_close))
-                        }
-                    },
-                )
-            }
         }
     }
 }

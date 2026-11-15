@@ -42,8 +42,8 @@ android {
     defaultConfig {
         applicationId = "xyz.jmir.tachiyomi.mi"
 
-        versionCode = 150
-        versionName = "0.18.3.9"
+        versionCode = 151
+        versionName = "0.18.3.10"
 
         // The scheme the tracker logins redirect to. It has to match the one that is
         // registered at the tracker, so only the release build can use it - otherwise two
