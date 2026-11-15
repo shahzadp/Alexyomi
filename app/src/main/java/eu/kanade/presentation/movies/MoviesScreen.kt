@@ -56,6 +56,11 @@ import eu.kanade.tachiyomi.ui.movies.MoviesScreenModel
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
@@ -156,6 +161,7 @@ fun MoviesTabScreen() {
 
     var query by remember { mutableStateOf("") }
     var url by remember { mutableStateOf<String?>(null) }
+    var pageTitle by remember { mutableStateOf("") }
     val adBlockState = remember { mutableStateOf(true) }
     val streams = remember { MovieStreams() }
     val detected = streams.streams
@@ -304,6 +310,46 @@ fun MoviesTabScreen() {
             val chromeClient = remember { MoviesWebChromeClient(activity = context as? android.app.Activity) }
             val client = remember(currentUrl, streams) {
                 val topHost = Uri.parse(currentUrl).host
+                val extractYoutubeStreams: (android.webkit.WebView) -> Unit = { webView ->
+                    webView.evaluateJavascript(YOUTUBE_STREAMS_JS) { raw ->
+                        val json = raw?.trim()
+                        if (json.isNullOrEmpty() || json == "null") return@evaluateJavascript
+                        val inner = if (json.startsWith("\"")) {
+                            runCatching { Json.decodeFromString<String>(json) }.getOrNull()
+                                ?: return@evaluateJavascript
+                        } else {
+                            json
+                        }
+                        val root = runCatching { Json.parseToJsonElement(inner).jsonObject }.getOrNull()
+                            ?: return@evaluateJavascript
+                        val title = root["title"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        if (title.isNotBlank()) pageTitle = title
+                        val arr = runCatching { root["streams"]?.jsonArray }.getOrNull()
+                            ?: return@evaluateJavascript
+                        var bestUrl: String? = null
+                        var bestScore = -1
+                        for (el in arr) {
+                            val obj = runCatching { el.jsonObject }.getOrNull() ?: continue
+                            val streamUrl = obj["url"]?.jsonPrimitive?.contentOrNull ?: continue
+                            val quality = obj["quality"]?.jsonPrimitive?.contentOrNull?.lowercase().orEmpty()
+                            val score = run {
+                                val digits = quality.filter { it.isDigit() }.toIntOrNull()
+                                when {
+                                    digits != null && digits >= 144 -> digits
+                                    quality == "medium" -> 360
+                                    quality == "high" -> 480
+                                    quality == "small" || quality == "tiny" -> 240
+                                    else -> 100
+                                }
+                            }
+                            if (score > bestScore) {
+                                bestScore = score
+                                bestUrl = streamUrl
+                            }
+                        }
+                        bestUrl?.let { if (it !in streams.streams) streams.add(it) }
+                    }
+                }
                 object : AccompanistWebViewClient() {
                     override fun shouldInterceptRequest(
                         view: android.webkit.WebView,
@@ -363,6 +409,20 @@ fun MoviesTabScreen() {
                     ) {
                         super.onPageFinished(view, url)
                         view.evaluateJavascript(AD_SHIM_JS, null)
+                        if (url?.lowercase()?.contains("youtube.com") == true) {
+                            extractYoutubeStreams(view)
+                        }
+                    }
+
+                    override fun doUpdateVisitedHistory(
+                        view: android.webkit.WebView,
+                        url: String?,
+                        isReload: Boolean,
+                    ) {
+                        super.doUpdateVisitedHistory(view, url, isReload)
+                        if (url?.lowercase()?.contains("youtube.com") == true) {
+                            extractYoutubeStreams(view)
+                        }
                     }
                 }
             }
@@ -396,7 +456,7 @@ fun MoviesTabScreen() {
                     FilledTonalButton(
                         onClick = {
                             val first = detected.first()
-                            scope.launch { screenModel.playMovie(context, first, first) }
+                            scope.launch { screenModel.playMovie(context, first, pageTitle.ifBlank { first }) }
                         },
                     ) {
                         Icon(
@@ -413,9 +473,39 @@ fun MoviesTabScreen() {
     }
 }
 
+// Extracts the direct (muxed, audio+video) progressive stream URLs YouTube embeds in the
+// watch page (ytInitialPlayerResponse.streamingData.progressiveFormats) plus the page title.
+private const val YOUTUBE_STREAMS_JS = """
+(function () {
+  try {
+    var p = window.ytInitialPlayerResponse;
+    if (!p || !p.streamingData) {
+      return JSON.stringify({ streams: [], title: document.title || '' });
+    }
+    var sd = p.streamingData || {};
+    var acc = [];
+    var arr = sd.progressiveFormats || [];
+    for (var i = 0; i < arr.length; i++) {
+      var f = arr[i];
+      if (f && f.url) {
+        acc.push({
+          url: f.url,
+          quality: f.qualityLabel || f.quality || '',
+          itag: f.itag || 0
+        });
+      }
+    }
+    return JSON.stringify({ streams: acc, title: document.title || '' });
+  } catch (e) {
+    return JSON.stringify({ streams: [], title: '' });
+  }
+})();
+"""
+
 // Injected into every page: neuter window.open (how pirate sites pop ads) and hide
 // the ad elements they inject into their own pages. Timed re-scans instead of a
 // MutationObserver — a persistent observer starved the page's JS thread and froze it.
+// YouTube is handled separately (see YOUTUBE_STREAMS_JS below).
 private const val AD_SHIM_JS = """
 (function () {
   if (window.__alexyomiBlock) return;

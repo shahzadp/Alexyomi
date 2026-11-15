@@ -15,7 +15,13 @@ import tachiyomi.domain.items.episode.repository.EpisodeRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import android.content.Context
+import android.net.Uri
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import logcat.LogPriority
+
+private const val YOUTUBE_UA =
+    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
 
 /**
  * Handles playback of arbitrary movie stream URLs through the in-app player.
@@ -35,8 +41,9 @@ class MoviesScreenModel : ScreenModel {
         if (url.isBlank()) return
         screenModelScope.launchIO {
             try {
+                val headers = defaultHeadersFor(url)
                 val anime = getOrCreateAnime(title)
-                val episode = getOrCreateEpisode(anime.id, url, title)
+                val episode = getOrCreateEpisode(anime.id, url, title, headers)
                 MainActivity.startPlayerActivity(
                     context,
                     anime.id,
@@ -77,9 +84,20 @@ class MoviesScreenModel : ScreenModel {
         )!!
     }
 
-    private suspend fun getOrCreateEpisode(animeId: Long, url: String, title: String): Episode {
+    private suspend fun getOrCreateEpisode(
+        animeId: Long,
+        url: String,
+        title: String,
+        headers: Map<String, String>,
+    ): Episode {
         val existing = episodeRepository.getEpisodeByUrlAndAnimeId(url = url, animeId = animeId)
         if (existing != null) return existing
+
+        val memo = buildJsonObject {
+            headers["userAgent"]?.let { put("userAgent", JsonPrimitive(it)) }
+            headers["referer"]?.let { put("referer", JsonPrimitive(it)) }
+            headers["cookie"]?.let { put("cookie", JsonPrimitive(it)) }
+        }
 
         val episode = Episode.create().copy(
             animeId = animeId,
@@ -87,7 +105,20 @@ class MoviesScreenModel : ScreenModel {
             name = title,
             episodeNumber = 1.0,
             sourceOrder = 0,
+            memo = memo,
         )
         return episodeRepository.addAllEpisodes(listOf(episode)).first()
+    }
+
+    private fun defaultHeadersFor(url: String): Map<String, String> {
+        val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull().orEmpty()
+        // YouTube serves video bytes from googlevideo.com; it expects the YouTube page as referrer.
+        if (host.contains("googlevideo.com")) {
+            return mapOf(
+                "userAgent" to YOUTUBE_UA,
+                "referer" to "https://www.youtube.com/",
+            )
+        }
+        return emptyMap()
     }
 }
