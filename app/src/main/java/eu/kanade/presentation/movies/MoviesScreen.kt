@@ -79,14 +79,72 @@ private class MovieStreams {
     }
 }
 
-/** Popups are blocked outright; they are how pirate sites spam ads. */
-private class MoviesWebChromeClient : AccompanistWebChromeClient() {
+/**
+ * Popups are blocked outright; they are how pirate sites spam ads.
+ * HTML5 video fullscreen (YouTube and every other site) is supported like a real browser:
+ * the page hands us a fullscreen custom view and we overlay it on the whole screen.
+ */
+private class MoviesWebChromeClient(
+    private val activity: android.app.Activity?,
+) : AccompanistWebChromeClient() {
+
+    private var fullscreenView: android.view.View? = null
+    private var fullscreenCallback: android.webkit.WebChromeClient.CustomViewCallback? = null
+    private var fullscreenParent: android.view.ViewGroup? = null
+
     override fun onCreateWindow(
         view: android.webkit.WebView?,
         isDialog: Boolean,
         isUserGesture: Boolean,
         resultMsg: Message?,
     ): Boolean = false
+
+    override fun onShowCustomView(
+        view: android.view.View,
+        callback: android.webkit.WebChromeClient.CustomViewCallback,
+    ) {
+        val content = activity?.findViewById<android.widget.FrameLayout>(android.R.id.content)
+        if (view == null || content == null) {
+            super.onShowCustomView(view, callback)
+            return
+        }
+        if (fullscreenView != null) onHideCustomView()
+
+        (view.parent as? android.view.ViewGroup)?.removeView(view)
+        for (i in 0 until content.childCount) {
+            content.getChildAt(i).visibility = android.view.View.GONE
+        }
+        view.setBackgroundColor(android.graphics.Color.BLACK)
+        content.addView(
+            view,
+            android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        fullscreenParent = content
+        fullscreenView = view
+        fullscreenCallback = callback
+    }
+
+    override fun onHideCustomView() {
+        val content = fullscreenParent
+        val view = fullscreenView
+        if (content != null && view != null) {
+            content.removeView(view)
+            for (i in 0 until content.childCount) {
+                content.getChildAt(i).visibility = android.view.View.VISIBLE
+            }
+        }
+        try {
+            fullscreenCallback?.onCustomViewHidden()
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "onCustomViewHidden failed" }
+        }
+        fullscreenView = null
+        fullscreenCallback = null
+        fullscreenParent = null
+    }
 }
 
 @Composable
@@ -243,7 +301,7 @@ fun MoviesTabScreen() {
             val currentUrl = url!!
             val webState = rememberWebViewState(url = currentUrl)
             val navigator = rememberWebViewNavigator()
-            val chromeClient = remember { MoviesWebChromeClient() }
+            val chromeClient = remember { MoviesWebChromeClient(activity = context as? android.app.Activity) }
             val client = remember(currentUrl, streams) {
                 val topHost = Uri.parse(currentUrl).host
                 object : AccompanistWebViewClient() {
@@ -465,6 +523,14 @@ private val STREAM_EXTENSIONS = listOf(
 )
 
 private fun isStreamUrl(url: String): Boolean {
+    val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull()
+    // YouTube's googlevideo segment URLs look like streams but are not playable as files;
+    // leave YouTube in the WebView (fullscreen now works there) instead of offering a broken FAB.
+    if (host != null &&
+        (host.contains("googlevideo.com") || host.contains("youtube.com") || host.contains("ytimg.com"))
+    ) {
+        return false
+    }
     val lower = url.lowercase().substringBefore('#').substringBefore('?')
     if (lower.contains("application/vnd.apple.mpegurl")) return true
     if (lower.contains("application/dash")) return true
