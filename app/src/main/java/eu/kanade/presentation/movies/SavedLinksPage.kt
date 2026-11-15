@@ -231,7 +231,7 @@ fun SavedLinksPage(
                         label = composeStringResource(AYMR.strings.movies_import_pdf),
                         onClick = {
                             showBackupDialog = false
-                            importLauncher.launch(arrayOf("application/pdf", "application/octet-stream"))
+                            importLauncher.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "*/*"))
                         },
                     )
                 }
@@ -630,14 +630,14 @@ private fun hostOf(url: String): String? =
 
 private fun exportBackup(context: Context, data: SavedLinksData) {
     runCatching {
-        val bytes = SavedLinksPdf.exportBytes(data)
+        val bytes = SavedLinksBackup.exportBytes(data)
         val name = "alexyomi_saved_links_backup_${
             SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-        }.pdf"
+        }.txt"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-                put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             }
             val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
@@ -665,7 +665,7 @@ private fun importBackup(
     runCatching {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: error("Unable to read the file")
-        val merged = SavedLinksPdf.importBytes(data, bytes)
+        val merged = SavedLinksBackup.importBytes(data, bytes)
         if (merged == null) {
             context.toast(AYMR.strings.movies_import_failed)
             return@runCatching

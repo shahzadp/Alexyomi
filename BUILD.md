@@ -176,3 +176,26 @@ version makes the app walk over every installed source again.
 See `UPSTREAM_SYNC.md` for how `aniyomiorg/aniyomi` is merged without resurrecting the removed
 library/backup features.
 
+## Publishing a release to GitHub
+
+1. Bump `versionCode`/`versionName` in `app/build.gradle.kts` and build the release APKs.
+2. Verify the arm64 APK's signature matches the project key (SHA-256 `e0b2f220…`).
+3. Share the arm64 APK to the phone over KDE Connect.
+4. Create the GitHub release with all five APK splits **plus `.github/ic_launcher_icon.png` as a
+   release asset — without exception, for every release**:
+
+   gh release create vX.Y.Z --repo shahzadp/Alexyomi --title "Alexyomi vX.Y.Z" --notes-file <notes.md> `
+     "app/build/outputs/apk/release/app-arm64-v8a-release.apk" `
+     "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" `
+     "app/build/outputs/apk/release/app-universal-release.apk" `
+     "app/build/outputs/apk/release/app-x86-release.apk" `
+     "app/build/outputs/apk/release/app-x86_64-release.apk" `
+     ".github/ic_launcher_icon.png"
+
+   `ic_launcher_icon.png` is the app's launcher icon rendered with rounded corners and
+   transparent outer corners (matches the device's adaptive mask), generated once and committed
+   at `.github/ic_launcher_icon.png`. Do not re-create or regenerate it per release; attach the
+   committed file.
+5. Byte-verify the uploaded APKs against the local ones (`gh release view <tag> --json assets`).
+6. Commit and push.
+
